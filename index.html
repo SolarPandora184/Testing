@@ -129,13 +129,16 @@
   }
 
   document.getElementById('loginBtn').onclick = () => {
+    console.log("Login button clicked");
     const user = document.getElementById('usernameInput').value.trim();
     const pass = document.getElementById('passwordInput').value;
     if (USERS[user] === pass) {
+      console.log("Login successful");
       document.getElementById('loginSection').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
       loadMissions();
     } else {
+      console.log("Login failed");
       document.getElementById('loginError').textContent = "Incorrect username or password.";
     }
   };
