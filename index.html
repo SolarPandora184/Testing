@@ -29,6 +29,34 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     #createAccountSection { display: none; }
+    /* Added styling for mission rows */
+    #missionList div {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      gap: 0.5rem;
+    }
+    #missionList div > div:first-child {
+      flex: 1;
+    }
+    #missionList button.delete {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      border-radius: 4px;
+    }
+    #missionList button.view {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      border-radius: 4px;
+    }
   </style>
 
   <!-- Firebase App (the core Firebase SDK) -->
@@ -167,25 +195,71 @@
     currentMissionNameEls.forEach(el => el.textContent = name);
   }
 
-  // Render mission list
+  // Render mission list with View and Delete buttons
   function refreshMissionList() {
     missionListEl.innerHTML = '';
+
+    if (missions.length === 0) {
+      missionListEl.textContent = 'No missions yet.';
+      return;
+    }
+
     missions.forEach((m, i) => {
-      const btn = document.createElement('button');
-      btn.textContent = m.name;
-      btn.onclick = () => {
+      const row = document.createElement('div');
+
+      const nameDiv = document.createElement('div');
+      nameDiv.textContent = m.name;
+
+      const viewBtn = document.createElement('button');
+      viewBtn.textContent = 'View';
+      viewBtn.classList.add('view');
+      viewBtn.onclick = () => {
         currentMission = m;
         updateMissionDisplays();
         renderChat();
         renderComms();
         renderFiles();
       };
-      missionListEl.appendChild(btn);
-    });
 
-    if (missions.length === 0) {
-      missionListEl.textContent = 'No missions yet.';
-    }
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.classList.add('delete');
+      deleteBtn.onclick = () => {
+        if (confirm(`Are you sure you want to delete mission "${m.name}"?`)) {
+          deleteMissionFromFirebase(m);
+        }
+      };
+
+      row.appendChild(nameDiv);
+      row.appendChild(viewBtn);
+      row.appendChild(deleteBtn);
+
+      missionListEl.appendChild(row);
+    });
+  }
+
+  // Function to delete mission from Firebase
+  function deleteMissionFromFirebase(mission) {
+    // Find the Firebase key of the mission by matching name
+    database.ref('missions').orderByChild('name').equalTo(mission.name).once('value', snapshot => {
+      snapshot.forEach(childSnapshot => {
+        childSnapshot.ref.remove()
+          .then(() => {
+            // Remove from local array
+            missions = missions.filter(m => m.name !== mission.name);
+            // Reset currentMission if deleted mission was selected
+            if (currentMission && currentMission.name === mission.name) {
+              currentMission = null;
+              updateMissionDisplays();
+              renderChat();
+              renderComms();
+              renderFiles();
+            }
+            refreshMissionList();
+          })
+          .catch(err => alert("Failed to delete mission: " + err.message));
+      });
+    });
   }
 
   // Render chat messages
