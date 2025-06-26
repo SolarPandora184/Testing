@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mission Selection</title>
+  <style>
+    body {
+      background: #12161d;
+      color: white;
+      font-family: sans-serif;
+      margin: 0; padding: 1rem;
+    }
+    button {
+      background: #3a8eed;
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 2rem;
+    }
+    th, td {
+      border: 1px solid #2d333b;
+      padding: 0.5rem;
+      text-align: left;
+    }
+    th {
+      background: #1e232b;
+    }
+    tr:hover {
+      background: #2d333b;
+      cursor: pointer;
+    }
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 10;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #1e232b;
+      padding: 1rem;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+    }
+    .modal-content h2 {
+      margin-top: 0;
+    }
+    .modal-content label {
+      display: block;
+      margin-top: 0.5rem;
+    }
+    .modal-content input {
+      width: 100%;
+      padding: 0.4rem;
+      margin-top: 0.25rem;
+      background: #2a2f38;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: white;
+    }
+    .modal-buttons {
+      margin-top: 1rem;
+      text-align: right;
+    }
+    .modal-buttons button {
+      margin-left: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <button id="addMissionBtn">Add Mission</button>
+
+  <table id="missionsTable">
+    <thead>
+      <tr>
+        <th>Mission No</th>
+        <th>Request No</th>
+        <th>Mission Name</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Location</th>
+        <th>Type</th>
+        <th>Air</th>
+        <th>Ground</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h2>Add New Mission</h2>
+      <form id="missionForm">
+        <label>Mission No: <input type="text" name="missionNo" required /></label>
+        <label>Request No: <input type="text" name="requestNo" required /></label>
+        <label>Mission Name: <input type="text" name="missionName" required /></label>
+        <label>Start: <input type="datetime-local" name="start" required /></label>
+        <label>End: <input type="datetime-local" name="end" required /></label>
+        <label>Location: <input type="text" name="location" required /></label>
+        <label>Type: <input type="text" name="type" required /></label>
+        <label>Air: <input type="text" name="air" /></label>
+        <label>Ground: <input type="text" name="ground" /></label>
+
+        <div class="modal-buttons">
+          <button type="button" id="cancelBtn">Cancel</button>
+          <button type="submit">Create Mission</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script>
+    // Firebase config (use your own config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+      authDomain: "mission-9dd26.firebaseapp.com",
+      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+      projectId: "mission-9dd26",
+      storageBucket: "mission-9dd26.appspot.com",
+      messagingSenderId: "1080303837931",
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const modal = document.getElementById('modal');
+    const addMissionBtn = document.getElementById('addMissionBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const missionForm = document.getElementById('missionForm');
+    const missionsTableBody = document.querySelector('#missionsTable tbody');
+
+    // Open modal on button click
+    addMissionBtn.addEventListener('click', () => {
+      missionForm.reset();
+      modal.style.display = 'flex';
+    });
+
+    // Close modal
+    cancelBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+    });
+
+    // Load all missions and display them in the table
+    function loadMissions() {
+      db.ref('missions').once('value').then(snapshot => {
+        const data = snapshot.val() || {};
+        missionsTableBody.innerHTML = '';
+        Object.entries(data).forEach(([key, mission]) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${mission.missionNo || key}</td>
+            <td>${mission.requestNo || ''}</td>
+            <td>${mission.missionName || ''}</td>
+            <td>${mission.start || ''}</td>
+            <td>${mission.end || ''}</td>
+            <td>${mission.location || ''}</td>
+            <td>${mission.type || ''}</td>
+            <td>${mission.air || ''}</td>
+            <td>${mission.ground || ''}</td>
+          `;
+          // Clicking row navigates to dashboard with missionKey = missionNo
+          tr.addEventListener('click', () => {
+            window.location.href = `index.html?missionKey=${encodeURIComponent(mission.missionNo || key)}`;
+          });
+          missionsTableBody.appendChild(tr);
+        });
+      });
+    }
+
+    loadMissions();
+
+    missionForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const formData = new FormData(missionForm);
+      const missionData = {
+        missionNo: formData.get('missionNo'),
+        requestNo: formData.get('requestNo'),
+        missionName: formData.get('missionName'),
+        start: formData.get('start'),
+        end: formData.get('end'),
+        location: formData.get('location'),
+        type: formData.get('type'),
+        air: formData.get('air'),
+        ground: formData.get('ground'),
+      };
+      const missionKey = missionData.missionNo;
+      if (!missionKey) {
+        alert('Mission No is required');
+        return;
+      }
+      db.ref('missions/' + missionKey).set(missionData).then(() => {
+        modal.style.display = 'none';
+        // Redirect to dashboard page with missionKey param
+        window.location.href = `index.html?missionKey=${encodeURIComponent(missionKey)}`;
+      });
+    });
+
+    // Close modal if clicking outside content
+    window.addEventListener('click', e => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
