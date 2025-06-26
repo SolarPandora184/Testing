@@ -65,7 +65,19 @@
   </style>
 </head>
 <body>
-  <div class="grid">
+  <div id="adminLogin" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999">
+    <img src="Logo" alt="Logo" style="width:150px;margin-bottom:1rem" />
+    <h2>Login</h2>
+    <input id="loginUsername" placeholder="Username" />
+    <input type="password" id="loginPassword" placeholder="Password" />
+    <button onclick="loginUser()">Login</button>
+    <h3>Admin Access</h3>
+    <input type="password" id="adminPassword" placeholder="Admin Password" />
+    <button onclick="adminLogin()">Admin Login</button>
+    <p id="loginError" style="color:red"></p>
+  </div>
+
+  <div class="grid" id="mainApp" style="display:none">
     <!-- Incident Command -->
     <div class="panel">
       <h2>Incident Command</h2>
@@ -101,10 +113,11 @@
       <h2>User Profiles</h2>
       <select id="profileSelect"></select>
       <div id="profileDisplay"></div>
-      <h3>Edit/Add Profile</h3>
-      <input type="text" id="newName" placeholder="Name" />
-      <textarea id="newQuals" placeholder="Qualifications (comma-separated)"></textarea>
-      <button onclick="saveProfile()">Save Profile</button>
+      <div id="adminTools" style="display:none">
+        <input type="text" id="newName" placeholder="Name" />
+        <textarea id="newQuals" placeholder="Qualifications (comma-separated)"></textarea>
+        <button onclick="saveProfile()">Save Profile</button>
+      </div>
     </div>
   </div>
 
@@ -130,6 +143,40 @@
     const commsLogEl = document.getElementById('commsLog');
     const fileListEl = document.getElementById('fileList');
 
+    let currentUser = null;
+    let isAdmin = false;
+
+    const users = {
+      "Kendrick Uhles": "Ku2023!@",
+      "Laramie Uhles": "Missions2025",
+      "Ryan Uhles": "IC2025!"
+    };
+    const adminPassword = "admin123";
+
+    function loginUser() {
+      const user = document.getElementById("loginUsername").value.trim();
+      const pass = document.getElementById("loginPassword").value.trim();
+      if (users[user] && users[user] === pass) {
+        currentUser = user;
+        document.getElementById("adminLogin").style.display = "none";
+        document.getElementById("mainApp").style.display = "grid";
+      } else {
+        document.getElementById("loginError").textContent = "Invalid login.";
+      }
+    }
+
+    function adminLogin() {
+      const pw = document.getElementById("adminPassword").value.trim();
+      if (pw === adminPassword) {
+        isAdmin = true;
+        document.getElementById("adminTools").style.display = "block";
+        document.getElementById("adminLogin").style.display = "none";
+        document.getElementById("mainApp").style.display = "grid";
+      } else {
+        document.getElementById("loginError").textContent = "Invalid admin password.";
+      }
+    }
+
     function getTimeStamp() {
       const now = new Date();
       return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -138,11 +185,8 @@
     function sendChat() {
       const input = document.getElementById('chatInput');
       const msg = input.value.trim();
-      if (!msg) return;
-      db.ref(`missions/${missionKey}/chat`).push({
-        text: msg,
-        time: getTimeStamp()
-      });
+      if (!msg || !currentUser) return;
+      db.ref(`missions/${missionKey}/chat`).push({ text: msg, time: getTimeStamp(), user: currentUser });
       input.value = '';
     }
 
@@ -150,10 +194,7 @@
       const input = document.getElementById('commsInput');
       const entry = input.value.trim();
       if (!entry) return;
-      db.ref(`missions/${missionKey}/comms`).push({
-        text: entry,
-        time: getTimeStamp()
-      });
+      db.ref(`missions/${missionKey}/comms`).push({ text: entry, time: getTimeStamp() });
       input.value = '';
     }
 
@@ -170,7 +211,7 @@
       chatMessagesEl.innerHTML = '';
       if (data) Object.values(data).forEach(msg => {
         const div = document.createElement('div');
-        div.textContent = `${msg.time || '??'} - ${msg.text || msg}`;
+        div.textContent = `[${msg.time || '??'}] ${msg.user || 'Unknown'}: ${msg.text || msg}`;
         chatMessagesEl.appendChild(div);
       });
     });
