@@ -2,147 +2,186 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mission Management with Aircraft Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mission Management</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 1rem; background: #f5f5f5; }
-    section { margin-bottom: 2rem; }
-    h2 { border-bottom: 1px solid #ccc; }
-    input, button, textarea {
-      margin-top: 0.5rem;
-      display: block;
-      padding: 0.5rem;
-      font-size: 1rem;
+    :root {
+      --bg: #12161d;
+      --panel: #1e232b;
+      --accent: #2d333b;
+      --text: #ffffff;
+      --muted: #a0a0a0;
+      --highlight: #3a8eed;
     }
-    #chatMessages, #commsLog, #fileList {
-      border: 1px solid #ccc;
-      height: 150px;
-      overflow-y: auto;
-      padding: 0.5rem;
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
-    #missionList div {
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      height: 100vh;
+      gap: 10px;
+      padding: 10px;
+    }
+    .panel {
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 1rem;
       display: flex;
-      align-items: center;
-      margin-bottom: 0.5rem;
-      gap: 0.5rem;
+      flex-direction: column;
+      overflow: hidden;
     }
-    #missionList div > div:first-child {
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 1.2rem;
+      border-bottom: 1px solid var(--accent);
+      padding-bottom: 5px;
+    }
+    #map { flex: 1; border-radius: 8px; }
+    #chatMessages, #commsLog, #fileList {
       flex: 1;
-    }
-    #missionList button.delete {
-      background-color: #e74c3c;
-      color: white;
-      border: none;
-      cursor: pointer;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
+      overflow-y: auto;
+      background: var(--accent);
+      padding: 0.5rem;
       border-radius: 4px;
+      margin-bottom: 10px;
     }
-    #missionList button.view {
-      background-color: #3498db;
+    input, button, textarea {
+      background: #2a2f38;
       color: white;
-      border: none;
-      cursor: pointer;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
+      border: 1px solid #444;
       border-radius: 4px;
+      padding: 0.5rem;
+      margin-top: 5px;
     }
-    #aircraftTracking { height: 500px; margin-top: 2rem; }
+    #fileList li { padding: 5px 0; border-bottom: 1px solid #444; }
+    #chatInput, #commsInput { width: 100%; }
   </style>
+</head>
+<body>
+  <div class="grid">
+    <!-- Incident Command -->
+    <div class="panel">
+      <h2>Incident Command</h2>
+      <div id="chatMessages"></div>
+      <input type="text" id="chatInput" placeholder="Message #operations" />
+      <button onclick="sendChat()">Send</button>
+    </div>
+
+    <!-- Unit Tracking -->
+    <div class="panel">
+      <h2>Unit Tracking</h2>
+      <div id="map"></div>
+    </div>
+
+    <!-- Comms Log -->
+    <div class="panel">
+      <h2>Comms Log</h2>
+      <div id="commsLog"></div>
+      <input type="text" id="commsInput" placeholder="Log entry" />
+      <button onclick="logComms()">Log</button>
+    </div>
+
+    <!-- File Sharing -->
+    <div class="panel">
+      <h2>File Sharing</h2>
+      <input type="file" id="fileUpload" />
+      <button onclick="uploadFile()">Upload</button>
+      <ul id="fileList"></ul>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-</head>
-<body>
+  <script>
+    // Firebase init
+    const firebaseConfig = {
+      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+      authDomain: "mission-9dd26.firebaseapp.com",
+      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+      projectId: "mission-9dd26",
+      storageBucket: "mission-9dd26.appspot.com",
+      messagingSenderId: "1080303837931",
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-<!-- NOTE: Login and account creation are disabled for now. To re-enable, uncomment the related sections. -->
+    // Simple demo mission key (can be set dynamically later)
+    const missionKey = 'demo-mission';
 
-<!-- MAIN APP SECTION -->
-<div id="mainApp">
-  <h1>Mission Management</h1>
-  <section id="missions">
-    <h2>Missions</h2>
-    <div id="missionList"></div>
-    <input type="text" id="newMissionName" placeholder="New mission name" />
-    <button id="createMissionBtn">Create Mission</button>
-  </section>
+    const chatMessagesEl = document.getElementById('chatMessages');
+    const commsLogEl = document.getElementById('commsLog');
+    const fileListEl = document.getElementById('fileList');
 
-  <section id="chat">
-    <h2>Chat</h2>
-    <p>Mission: <span id="currentMissionName">None</span></p>
-    <div id="chatMessages"></div>
-    <input type="text" id="chatInput" placeholder="Type a message" />
-    <button id="sendChatBtn">Send</button>
-  </section>
+    function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+      db.ref(`missions/${missionKey}/chat`).push(msg);
+      input.value = '';
+    }
 
-  <section id="comms">
-    <h2>Comms Log</h2>
-    <p>Mission: <span id="currentMissionName2">None</span></p>
-    <div id="commsLog"></div>
-    <input type="text" id="commsInput" placeholder="Log entry" />
-    <button id="logCommsBtn">Log</button>
-  </section>
+    function logComms() {
+      const input = document.getElementById('commsInput');
+      const entry = input.value.trim();
+      if (!entry) return;
+      db.ref(`missions/${missionKey}/comms`).push(entry);
+      input.value = '';
+    }
 
-  <section id="files">
-    <h2>Files</h2>
-    <p>Mission: <span id="currentMissionName3">None</span></p>
-    <input type="file" id="fileUpload" />
-    <button id="uploadFileBtn">Upload</button>
-    <ul id="fileList"></ul>
-  </section>
+    function uploadFile() {
+      const input = document.getElementById('fileUpload');
+      if (!input.files.length) return;
+      const file = input.files[0];
+      db.ref(`missions/${missionKey}/files`).push({ name: file.name });
+      input.value = '';
+    }
 
-  <section id="aircraft">
-    <h2>Track an Aircraft</h2>
-    <input type="text" id="tailInput" placeholder="Enter Tail Number (e.g., N12345)" />
-    <button onclick="trackAircraft()">Track</button>
-    <div id="aircraftTracking"></div>
-  </section>
-</div>
-
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
-    authDomain: "mission-9dd26.firebaseapp.com",
-    databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
-    projectId: "mission-9dd26",
-    storageBucket: "mission-9dd26.appspot.com",
-    messagingSenderId: "1080303837931",
-    appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
-    measurementId: "G-NWFV3RFGKV"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const database = firebase.database();
-
-  let map = L.map('aircraftTracking').setView([39.5, -98.35], 4);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data © OpenStreetMap contributors'
-  }).addTo(map);
-  let aircraftMarker = null;
-
-  function trackAircraft() {
-    const tail = document.getElementById("tailInput").value.toUpperCase();
-    if (!tail) return alert("Please enter a tail number.");
-    fetch('https://opensky-network.org/api/states/all')
-      .then(res => res.json())
-      .then(data => {
-        const match = data.states.find(state =>
-          state[1] && state[1].trim().toUpperCase().includes(tail)
-        );
-        if (!match) return alert("Aircraft not found.");
-        const lat = match[6];
-        const lon = match[5];
-        if (lat && lon) {
-          if (aircraftMarker) aircraftMarker.setLatLng([lat, lon]);
-          else aircraftMarker = L.marker([lat, lon]).addTo(map);
-          map.setView([lat, lon], 7);
-        } else alert("Location unavailable.");
-      })
-      .catch(err => {
-        console.error(err);
-        alert("Error fetching aircraft data.");
+    // Realtime listeners
+    db.ref(`missions/${missionKey}/chat`).on('value', snap => {
+      const data = snap.val();
+      chatMessagesEl.innerHTML = '';
+      if (data) Object.values(data).forEach(msg => {
+        const div = document.createElement('div');
+        div.textContent = msg;
+        chatMessagesEl.appendChild(div);
       });
-  }
-</script>
+    });
+
+    db.ref(`missions/${missionKey}/comms`).on('value', snap => {
+      const data = snap.val();
+      commsLogEl.innerHTML = '';
+      if (data) Object.values(data).forEach(entry => {
+        const div = document.createElement('div');
+        div.textContent = entry;
+        commsLogEl.appendChild(div);
+      });
+    });
+
+    db.ref(`missions/${missionKey}/files`).on('value', snap => {
+      const data = snap.val();
+      fileListEl.innerHTML = '';
+      if (data) Object.values(data).forEach(file => {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        fileListEl.appendChild(li);
+      });
+    });
+
+    // Leaflet map
+    let map = L.map('map').setView([39.5, -98.35], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+  </script>
 </body>
 </html>
