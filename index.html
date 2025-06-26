@@ -62,6 +62,33 @@
     }
     #fileList li { padding: 5px 0; border-bottom: 1px solid #444; }
     #chatInput, #commsInput { width: 100%; }
+    #profileSearchBtn {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      background: var(--highlight);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #profileSearchPanel {
+      position: fixed;
+      bottom: 70px;
+      right: 15px;
+      width: 300px;
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 1rem;
+      display: none;
+      flex-direction: column;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      z-index: 9;
+    }
   </style>
 </head>
 <body>
@@ -104,13 +131,12 @@
       <button onclick="uploadFile()">Upload</button>
       <ul id="fileList"></ul>
     </div>
+  </div>
 
-    <!-- Profile Search -->
-    <div class="panel">
-      <h2>Profile Search</h2>
-      <input type="text" id="searchBox" placeholder="Search by name..." oninput="searchProfile()" />
-      <div id="profileResult"></div>
-    </div>
+  <button id="profileSearchBtn" onclick="toggleProfileSearch()">🔍</button>
+  <div id="profileSearchPanel">
+    <input type="text" id="searchBox" placeholder="Search name..." oninput="searchProfile()" />
+    <div id="profileResult"></div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -217,6 +243,11 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
+
+    function toggleProfileSearch() {
+      const panel = document.getElementById("profileSearchPanel");
+      panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+    }
 
     function searchProfile() {
       const name = document.getElementById("searchBox").value.trim();
