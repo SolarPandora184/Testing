@@ -71,9 +71,6 @@
     <input id="loginUsername" placeholder="Username" />
     <input type="password" id="loginPassword" placeholder="Password" />
     <button onclick="loginUser()">Login</button>
-    <h3>Admin Access</h3>
-    <input type="password" id="adminPassword" placeholder="Admin Password" />
-    <button onclick="adminLogin()">Admin Login</button>
     <p id="loginError" style="color:red"></p>
   </div>
 
@@ -108,16 +105,11 @@
       <ul id="fileList"></ul>
     </div>
 
-    <!-- User Profiles -->
+    <!-- Profile Search -->
     <div class="panel">
-      <h2>User Profiles</h2>
-      <select id="profileSelect"></select>
-      <div id="profileDisplay"></div>
-      <div id="adminTools" style="display:none">
-        <input type="text" id="newName" placeholder="Name" />
-        <textarea id="newQuals" placeholder="Qualifications (comma-separated)"></textarea>
-        <button onclick="saveProfile()">Save Profile</button>
-      </div>
+      <h2>Profile Search</h2>
+      <input type="text" id="searchBox" placeholder="Search by name..." oninput="searchProfile()" />
+      <div id="profileResult"></div>
     </div>
   </div>
 
@@ -144,14 +136,11 @@
     const fileListEl = document.getElementById('fileList');
 
     let currentUser = null;
-    let isAdmin = false;
-
     const users = {
       "Kendrick Uhles": "Ku2023!@",
       "Laramie Uhles": "Missions2025",
       "Ryan Uhles": "IC2025!"
     };
-    const adminPassword = "admin123";
 
     function loginUser() {
       const user = document.getElementById("loginUsername").value.trim();
@@ -162,18 +151,6 @@
         document.getElementById("mainApp").style.display = "grid";
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
-      }
-    }
-
-    function adminLogin() {
-      const pw = document.getElementById("adminPassword").value.trim();
-      if (pw === adminPassword) {
-        isAdmin = true;
-        document.getElementById("adminTools").style.display = "block";
-        document.getElementById("adminLogin").style.display = "none";
-        document.getElementById("mainApp").style.display = "grid";
-      } else {
-        document.getElementById("loginError").textContent = "Invalid admin password.";
       }
     }
 
@@ -241,40 +218,22 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    const profilesRef = db.ref("profiles");
-
-    function renderProfiles(data) {
-      const select = document.getElementById("profileSelect");
-      const display = document.getElementById("profileDisplay");
-      select.innerHTML = '';
-      display.innerHTML = '';
-      for (const [name, details] of Object.entries(data)) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
+    function searchProfile() {
+      const name = document.getElementById("searchBox").value.trim();
+      const resultBox = document.getElementById("profileResult");
+      if (!name) {
+        resultBox.innerHTML = "";
+        return;
       }
-      select.onchange = () => {
-        const user = data[select.value];
-        display.innerHTML = `<strong>${select.value}</strong><br><ul>` +
-          user.qualifications.map(q => `<li>${q}</li>`).join('') + '</ul>';
-      };
-      select.dispatchEvent(new Event("change"));
-    }
-
-    profilesRef.on('value', snap => {
-      const data = snap.val();
-      if (data) renderProfiles(data);
-    });
-
-    function saveProfile() {
-      const name = document.getElementById('newName').value.trim();
-      const quals = document.getElementById('newQuals').value.trim();
-      if (!name || !quals) return alert("Fill out both fields");
-      const qualificationList = quals.split(',').map(q => q.trim());
-      db.ref(`profiles/${name}`).set({ qualifications: qualificationList });
-      document.getElementById('newName').value = '';
-      document.getElementById('newQuals').value = '';
+      db.ref(`profiles/${name}`).once('value', snap => {
+        const data = snap.val();
+        if (data) {
+          resultBox.innerHTML = `<strong>${name}</strong><br><ul>` +
+            data.qualifications.map(q => `<li>${q}</li>`).join('') + '</ul>';
+        } else {
+          resultBox.innerHTML = 'Profile not found.';
+        }
+      });
     }
   </script>
 </body>
