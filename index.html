@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Aircraft Tracker</title>
+  <title>Live Aircraft Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body {
@@ -27,33 +27,41 @@
   </style>
 </head>
 <body>
-  <h1>Track an Aircraft</h1>
+  <h1>Live Aircraft Tracker</h1>
   <input type="text" id="tailInput" placeholder="Enter Tail Number (e.g., N12345)" />
-  <button onclick="trackAircraft()">Track</button>
+  <button onclick="startTracking()">Start Tracking</button>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let map = L.map('map').setView([39.5, -98.35], 4); // Center on USA
+    const map = L.map('map').setView([39.5, -98.35], 4); // USA center
+    let aircraftMarker = null;
+    let trackingTail = null;
+    let updateInterval = null;
+
+    // Use your uploaded custom icon
+    const planeIcon = L.icon({
+      iconUrl: 'plane-icon.png', // ✅ Your uploaded image file
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20]
+    });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: 'Map data © OpenStreetMap contributors'
     }).addTo(map);
 
-    async function trackAircraft() {
-      const tail = document.getElementById("tailInput").value.toUpperCase();
-      if (!tail) return alert("Please enter a tail number.");
-
+    async function updateAircraftPosition() {
       try {
         const res = await fetch('https://opensky-network.org/api/states/all');
         const data = await res.json();
 
         const match = data.states.find(state =>
-          state[1] && state[1].trim().toUpperCase().includes(tail)
+          state[1] && state[1].trim().toUpperCase().includes(trackingTail)
         );
 
         if (!match) {
-          alert("Aircraft not found.");
+          console.log("Aircraft not found or not in flight.");
           return;
         }
 
@@ -61,17 +69,28 @@
         const lon = match[5];
 
         if (lat && lon) {
+          if (aircraftMarker) {
+            aircraftMarker.setLatLng([lat, lon]);
+          } else {
+            aircraftMarker = L.marker([lat, lon], { icon: planeIcon }).addTo(map)
+              .bindPopup(`Tail: ${match[1]}<br>Lat: ${lat}<br>Lon: ${lon}`).openPopup();
+          }
           map.setView([lat, lon], 7);
-          L.marker([lat, lon]).addTo(map)
-            .bindPopup(`Tail: ${match[1]}<br>Lat: ${lat}<br>Lon: ${lon}`).openPopup();
-        } else {
-          alert("Aircraft location not available.");
         }
-
       } catch (err) {
-        console.error(err);
-        alert("Error fetching aircraft data.");
+        console.error("Error updating aircraft position:", err);
       }
+    }
+
+    function startTracking() {
+      const input = document.getElementById("tailInput").value.toUpperCase().trim();
+      if (!input) return alert("Please enter a tail number.");
+      trackingTail = input;
+
+      if (updateInterval) clearInterval(updateInterval);
+      aircraftMarker = null;
+      updateAircraftPosition(); // First position
+      updateInterval = setInterval(updateAircraftPosition, 15000); // Update every 15 seconds
     }
   </script>
 </body>
