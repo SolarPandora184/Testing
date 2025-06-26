@@ -21,15 +21,6 @@
       overflow-y: auto;
       padding: 0.5rem;
     }
-    #loginSection, #createAccountSection {
-      max-width: 400px;
-      margin: 2rem auto;
-      background: white;
-      padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    #createAccountSection { display: none; }
     #missionList div {
       display: flex;
       align-items: center;
@@ -65,25 +56,10 @@
 </head>
 <body>
 
-<!-- LOGIN SECTION -->
-<div id="loginSection">
-  <h2>Mission Access</h2>
-  <input type="text" id="usernameInput" placeholder="Username" autocomplete="username" />
-  <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password" />
-  <button id="loginBtn">Login</button>
-  <button id="createAccountBtn">Create Account</button>
-  <p id="loginError" style="color:red;"></p>
-</div>
-
-<!-- CREATE ACCOUNT SECTION -->
-<div id="createAccountSection">
-  <h2>Request an Account</h2>
-  <p>Email Kendrick: <a href="mailto:Kendrick.Uhles@cawgcap.org?cc=Laramie.Uhles@cawgcap.org&subject=Mission%20System%20Account%20Request">Kendrick.Uhles@cawgcap.org</a></p>
-  <button id="backToLoginBtn">&larr; Back to Login</button>
-</div>
+<!-- NOTE: Login and account creation are disabled for now. To re-enable, uncomment the related sections. -->
 
 <!-- MAIN APP SECTION -->
-<div id="mainApp" style="display:none;">
+<div id="mainApp">
   <h1>Mission Management</h1>
   <section id="missions">
     <h2>Missions</h2>
@@ -138,7 +114,6 @@
   firebase.initializeApp(firebaseConfig);
   const database = firebase.database();
 
-  // Map setup
   let map = L.map('aircraftTracking').setView([39.5, -98.35], 4);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: 'Map data © OpenStreetMap contributors'
