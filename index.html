@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mission Selection</title>
+  <title>Mission Management</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     :root {
@@ -20,107 +20,88 @@
       font-family: sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 1rem;
     }
-    h1 { text-align: center; margin-bottom: 1rem; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      height: 100vh;
+      gap: 10px;
+      padding: 10px;
+    }
+    .panel {
       background: var(--panel);
-      color: var(--text);
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
-    th, td {
-      padding: 0.75rem;
-      border: 1px solid #333;
-      text-align: left;
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 1.2rem;
+      border-bottom: 1px solid var(--accent);
+      padding-bottom: 5px;
     }
-    th {
+    #map { flex: 1; border-radius: 8px; }
+    #chatMessages, #commsLog, #fileList {
+      flex: 1;
+      overflow-y: auto;
       background: var(--accent);
-    }
-    tr:hover {
-      background: #1c222b;
-      cursor: pointer;
-    }
-    #filterInput {
-      width: 100%;
       padding: 0.5rem;
-      margin-bottom: 1rem;
-      background: #2d333b;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    input, button, textarea {
+      background: #2a2f38;
       color: white;
       border: 1px solid #444;
       border-radius: 4px;
+      padding: 0.5rem;
+      margin-top: 5px;
     }
-    #addMissionBtn {
-      background: var(--highlight);
-      color: white;
-      padding: 0.6rem 1rem;
-      margin: 1rem 0;
-      border: none;
-      border-radius: 4px;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-    #missionForm {
-      background: var(--panel);
-      padding: 1rem;
-      border-radius: 8px;
-      display: none;
-      margin-top: 1rem;
-    }
-    #missionForm input {
-      width: 100%;
-      margin-bottom: 0.5rem;
-    }
-    #missionForm button {
-      background: var(--highlight);
-      border: none;
-      padding: 0.6rem 1rem;
-      border-radius: 4px;
-      color: white;
-      font-size: 1rem;
-      margin-top: 0.5rem;
-    }
+    #fileList li { padding: 5px 0; border-bottom: 1px solid #444; }
+    #chatInput, #commsInput { width: 100%; }
   </style>
 </head>
 <body>
-  <h1>Select a Mission</h1>
-  <input type="text" id="filterInput" placeholder="Filter missions..." />
-  <button id="addMissionBtn">+ Add Mission</button>
+  <div class="grid">
+    <!-- Incident Command -->
+    <div class="panel">
+      <h2>Incident Command</h2>
+      <div id="chatMessages"></div>
+      <input type="text" id="chatInput" placeholder="Message #operations" />
+      <button onclick="sendChat()">Send</button>
+    </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Mission No</th>
-        <th>Request No</th>
-        <th>Mission Name</th>
-        <th>Start</th>
-        <th>End</th>
-        <th>Location</th>
-        <th>Type</th>
-        <th>Air</th>
-        <th>Ground</th>
-      </tr>
-    </thead>
-    <tbody id="missionTableBody"></tbody>
-  </table>
+    <!-- Unit Tracking -->
+    <div class="panel">
+      <h2>Unit Tracking</h2>
+      <div id="map"></div>
+    </div>
 
-  <div id="missionForm">
-    <h2>Add New Mission</h2>
-    <input id="missionNo" placeholder="Mission No" />
-    <input id="requestNo" placeholder="Request No" />
-    <input id="name" placeholder="Mission Name" />
-    <input id="start" placeholder="Start Date" />
-    <input id="end" placeholder="End Date" />
-    <input id="location" placeholder="Location" />
-    <input id="type" placeholder="Mission Type" />
-    <input id="air" placeholder="Air Resources" />
-    <input id="ground" placeholder="Ground Resources" />
-    <button onclick="submitMission()">Submit Mission</button>
+    <!-- Comms Log -->
+    <div class="panel">
+      <h2>Comms Log</h2>
+      <div id="commsLog"></div>
+      <input type="text" id="commsInput" placeholder="Log entry" />
+      <button onclick="logComms()">Log</button>
+    </div>
+
+    <!-- File Sharing -->
+    <div class="panel">
+      <h2>File Sharing</h2>
+      <input type="file" id="fileUpload" />
+      <button onclick="uploadFile()">Upload</button>
+      <ul id="fileList"></ul>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    // Firebase init
     const firebaseConfig = {
       apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
       authDomain: "mission-9dd26.firebaseapp.com",
@@ -128,70 +109,83 @@
       projectId: "mission-9dd26",
       storageBucket: "mission-9dd26.appspot.com",
       messagingSenderId: "1080303837931",
-      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae"
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const missionTableBody = document.getElementById("missionTableBody");
-    const filterInput = document.getElementById("filterInput");
-    const addMissionBtn = document.getElementById("addMissionBtn");
-    const formDiv = document.getElementById("missionForm");
+    // Read missionKey from URL, default to 'demo-mission' if missing
+    function getMissionKeyFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('missionKey') || 'demo-mission';
+    }
+    const missionKey = getMissionKeyFromURL();
 
-    addMissionBtn.onclick = () => {
-      formDiv.style.display = formDiv.style.display === "none" ? "block" : "none";
-    };
+    const chatMessagesEl = document.getElementById('chatMessages');
+    const commsLogEl = document.getElementById('commsLog');
+    const fileListEl = document.getElementById('fileList');
 
-    function submitMission() {
-      const mission = {
-        missionNo: document.getElementById("missionNo").value,
-        requestNo: document.getElementById("requestNo").value,
-        name: document.getElementById("name").value,
-        start: document.getElementById("start").value,
-        end: document.getElementById("end").value,
-        location: document.getElementById("location").value,
-        type: document.getElementById("type").value,
-        air: document.getElementById("air").value,
-        ground: document.getElementById("ground").value,
-        chat: [],
-        comms: [],
-        files: []
-      };
-      db.ref("missions").push(mission);
-      formDiv.style.display = "none";
+    function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+      db.ref(`missions/${missionKey}/chat`).push(msg);
+      input.value = '';
     }
 
-    db.ref("missions").on("value", (snapshot) => {
-      missionTableBody.innerHTML = "";
-      const data = snapshot.val();
-      if (data) {
-        Object.entries(data).forEach(([key, mission]) => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${mission.missionNo || ""}</td>
-            <td>${mission.requestNo || ""}</td>
-            <td>${mission.name || ""}</td>
-            <td>${mission.start || ""}</td>
-            <td>${mission.end || ""}</td>
-            <td>${mission.location || ""}</td>
-            <td>${mission.type || ""}</td>
-            <td>${mission.air || ""}</td>
-            <td>${mission.ground || ""}</td>`;
-          tr.onclick = () => {
-            localStorage.setItem("missionKey", key);
-            window.location.href = "dashboard.html"; // You can change this path
-          };
-          missionTableBody.appendChild(tr);
-        });
-      }
-    });
+    function logComms() {
+      const input = document.getElementById('commsInput');
+      const entry = input.value.trim();
+      if (!entry) return;
+      db.ref(`missions/${missionKey}/comms`).push(entry);
+      input.value = '';
+    }
 
-    filterInput.addEventListener("input", () => {
-      const filter = filterInput.value.toLowerCase();
-      Array.from(missionTableBody.children).forEach(row => {
-        row.style.display = row.innerText.toLowerCase().includes(filter) ? "" : "none";
+    function uploadFile() {
+      const input = document.getElementById('fileUpload');
+      if (!input.files.length) return;
+      const file = input.files[0];
+      db.ref(`missions/${missionKey}/files`).push({ name: file.name });
+      input.value = '';
+    }
+
+    // Realtime listeners
+    db.ref(`missions/${missionKey}/chat`).on('value', snap => {
+      const data = snap.val();
+      chatMessagesEl.innerHTML = '';
+      if (data) Object.values(data).forEach(msg => {
+        const div = document.createElement('div');
+        div.textContent = msg;
+        chatMessagesEl.appendChild(div);
       });
     });
+
+    db.ref(`missions/${missionKey}/comms`).on('value', snap => {
+      const data = snap.val();
+      commsLogEl.innerHTML = '';
+      if (data) Object.values(data).forEach(entry => {
+        const div = document.createElement('div');
+        div.textContent = entry;
+        commsLogEl.appendChild(div);
+      });
+    });
+
+    db.ref(`missions/${missionKey}/files`).on('value', snap => {
+      const data = snap.val();
+      fileListEl.innerHTML = '';
+      if (data) Object.values(data).forEach(file => {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        fileListEl.appendChild(li);
+      });
+    });
+
+    // Leaflet map
+    let map = L.map('map').setView([39.5, -98.35], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
   </script>
 </body>
 </html>
