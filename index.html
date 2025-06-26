@@ -62,32 +62,28 @@
     }
     #fileList li { padding: 5px 0; border-bottom: 1px solid #444; }
     #chatInput, #commsInput { width: 100%; }
-    #profileSearchBtn {
+    #profileBtn {
       position: fixed;
       bottom: 15px;
       right: 15px;
       background: var(--highlight);
       color: white;
       border: none;
-      border-radius: 50%;
-      width: 48px;
-      height: 48px;
-      font-size: 24px;
+      padding: 10px 15px;
+      border-radius: 5px;
       cursor: pointer;
-      z-index: 10;
+      z-index: 1000;
     }
-    #profileSearchPanel {
-      position: fixed;
-      bottom: 70px;
-      right: 15px;
-      width: 300px;
-      background: var(--panel);
-      border-radius: 8px;
-      padding: 1rem;
+    #profileSearch {
       display: none;
-      flex-direction: column;
-      box-shadow: 0 0 10px rgba(0,0,0,0.5);
-      z-index: 9;
+      position: fixed;
+      bottom: 60px;
+      right: 15px;
+      background: var(--panel);
+      padding: 1rem;
+      border-radius: 8px;
+      width: 300px;
+      z-index: 1000;
     }
   </style>
 </head>
@@ -99,6 +95,11 @@
     <input type="password" id="loginPassword" placeholder="Password" />
     <button onclick="loginUser()">Login</button>
     <p id="loginError" style="color:red"></p>
+    <p style="margin-top:10px;">
+      <a href="https://forms.office.com/r/gDySnXnE7X" target="_blank" style="color:#3a8eed; text-decoration: underline;">
+        Sign up or Reset password
+      </a>
+    </p>
   </div>
 
   <div class="grid" id="mainApp" style="display:none">
@@ -133,10 +134,10 @@
     </div>
   </div>
 
-  <button id="profileSearchBtn" onclick="toggleProfileSearch()">🔍</button>
-  <div id="profileSearchPanel">
-    <input type="text" id="searchBox" placeholder="Search name..." oninput="searchProfile()" />
-    <div id="profileResult"></div>
+  <button id="profileBtn" onclick="toggleProfileSearch()">Search Profiles</button>
+  <div id="profileSearch">
+    <input type="text" id="searchBox" placeholder="Search by name..." oninput="searchProfile()" />
+    <div id="profileResult" style="margin-top:10px"></div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -245,8 +246,8 @@
     }).addTo(map);
 
     function toggleProfileSearch() {
-      const panel = document.getElementById("profileSearchPanel");
-      panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+      const box = document.getElementById("profileSearch");
+      box.style.display = box.style.display === "none" ? "block" : "none";
     }
 
     function searchProfile() {
