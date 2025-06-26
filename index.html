@@ -2,405 +2,77 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mission Management with Firebase</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aircraft Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 1rem; background: #f5f5f5; }
-    section { margin-bottom: 2rem; }
-    h2 { border-bottom: 1px solid #ccc; }
-    input, button, textarea {
-      margin-top: 0.5rem;
-      display: block;
-      padding: 0.5rem;
-      font-size: 1rem;
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
     }
-    #chatMessages, #commsLog, #fileList {
-      border: 1px solid #ccc;
-      height: 150px;
-      overflow-y: auto;
-      padding: 0.5rem;
+
+    #map {
+      height: 90vh;
+      width: 100%;
+      margin-top: 10px;
     }
-    #loginSection, #createAccountSection {
-      max-width: 400px;
-      margin: 2rem auto;
-      background: white;
-      padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    #createAccountSection { display: none; }
-    /* Added styling for mission rows */
-    #missionList div {
-      display: flex;
-      align-items: center;
-      margin-bottom: 0.5rem;
-      gap: 0.5rem;
-    }
-    #missionList div > div:first-child {
-      flex: 1;
-    }
-    #missionList button.delete {
-      background-color: #e74c3c;
-      color: white;
-      border: none;
-      cursor: pointer;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
-      border-radius: 4px;
-    }
-    #missionList button.view {
-      background-color: #3498db;
-      color: white;
-      border: none;
-      cursor: pointer;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
-      border-radius: 4px;
+
+    input, button {
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
     }
   </style>
-
-  <!-- Firebase App (the core Firebase SDK) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <!-- Firebase Realtime Database -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 </head>
 <body>
+  <h1>Track an Aircraft</h1>
+  <input type="text" id="tailInput" placeholder="Enter Tail Number (e.g., N12345)" />
+  <button onclick="trackAircraft()">Track</button>
+  <div id="map"></div>
 
-<!-- LOGIN SECTION -->
-<div id="loginSection">
-  <h2>Mission Access</h2>
-  <input type="text" id="usernameInput" placeholder="Username" autocomplete="username" />
-  <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password" />
-  <button id="loginBtn">Login</button>
-  <button id="createAccountBtn">Create Account</button>
-  <p id="loginError" style="color:red;"></p>
-</div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    let map = L.map('map').setView([39.5, -98.35], 4); // Center on USA
 
-<!-- CREATE ACCOUNT SECTION -->
-<div id="createAccountSection">
-  <h2>Request an Account</h2>
-  <p>
-    To request an account, please email <strong>Kendrick Uhles</strong> and CC <strong>Laramie Uhles</strong>.<br />
-    Include your desired <strong>username</strong> and <strong>password</strong>.
-  </p>
-  <p>Email Kendrick: <a href="mailto:Kendrick.Uhles@cawgcap.org?cc=Laramie.Uhles@cawgcap.org&subject=Mission%20System%20Account%20Request">Kendrick.Uhles@cawgcap.org</a></p>
-  <button id="backToLoginBtn">&larr; Back to Login</button>
-</div>
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data © OpenStreetMap contributors'
+    }).addTo(map);
 
-<!-- MAIN APP SECTION -->
-<div id="mainApp" style="display:none;">
-  <h1>Mission Management</h1>
+    async function trackAircraft() {
+      const tail = document.getElementById("tailInput").value.toUpperCase();
+      if (!tail) return alert("Please enter a tail number.");
 
-  <section id="missions">
-    <h2>Missions</h2>
-    <div id="missionList"></div>
-    <input type="text" id="newMissionName" placeholder="New mission name" />
-    <button id="createMissionBtn">Create Mission</button>
-  </section>
+      try {
+        const res = await fetch('https://opensky-network.org/api/states/all');
+        const data = await res.json();
 
-  <section id="chat">
-    <h2>Chat</h2>
-    <p>Mission: <span id="currentMissionName">None</span></p>
-    <div id="chatMessages"></div>
-    <input type="text" id="chatInput" placeholder="Type a message" />
-    <button id="sendChatBtn">Send</button>
-  </section>
+        const match = data.states.find(state =>
+          state[1] && state[1].trim().toUpperCase().includes(tail)
+        );
 
-  <section id="comms">
-    <h2>Comms Log</h2>
-    <p>Mission: <span id="currentMissionName2">None</span></p>
-    <div id="commsLog"></div>
-    <input type="text" id="commsInput" placeholder="Log entry" />
-    <button id="logCommsBtn">Log</button>
-  </section>
-
-  <section id="files">
-    <h2>Files</h2>
-    <p>Mission: <span id="currentMissionName3">None</span></p>
-    <input type="file" id="fileUpload" />
-    <button id="uploadFileBtn">Upload</button>
-    <ul id="fileList"></ul>
-  </section>
-</div>
-
-<script>
-  // Your Firebase config - replace with your actual config
-  const firebaseConfig = {
-    apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
-    authDomain: "mission-9dd26.firebaseapp.com",
-    databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
-    projectId: "mission-9dd26",
-    storageBucket: "mission-9dd26.appspot.com",
-    messagingSenderId: "1080303837931",
-    appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
-    measurementId: "G-NWFV3RFGKV"
-  };
-
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-  const database = firebase.database();
-
-  // Hardcoded user logins (for demo)
-  const USERS = {
-    "CommanderK": "SecurePass123",
-    "LaramieU": "RadioOps456",
-    "TestUser": "TestPass789"
-  };
-
-  const loginSection = document.getElementById('loginSection');
-  const createAccountSection = document.getElementById('createAccountSection');
-  const mainApp = document.getElementById('mainApp');
-  const loginError = document.getElementById('loginError');
-
-  document.getElementById('loginBtn').onclick = () => {
-    const user = document.getElementById('usernameInput').value.trim();
-    const pass = document.getElementById('passwordInput').value;
-    if (USERS[user] === pass) {
-      loginError.textContent = "";
-      loginSection.style.display = 'none';
-      mainApp.style.display = 'block';
-      loadMissionsFromFirebase();
-    } else {
-      loginError.textContent = "Incorrect username or password.";
-    }
-  };
-
-  document.getElementById('createAccountBtn').onclick = () => {
-    loginSection.style.display = 'none';
-    createAccountSection.style.display = 'block';
-  };
-
-  document.getElementById('backToLoginBtn').onclick = () => {
-    createAccountSection.style.display = 'none';
-    loginSection.style.display = 'block';
-    loginError.textContent = "";
-  };
-
-  // Missions stored locally for UI
-  let missions = [];
-  let currentMission = null;
-
-  const missionListEl = document.getElementById('missionList');
-  const currentMissionNameEls = [
-    document.getElementById('currentMissionName'),
-    document.getElementById('currentMissionName2'),
-    document.getElementById('currentMissionName3')
-  ];
-  const chatMessagesEl = document.getElementById('chatMessages');
-  const commsLogEl = document.getElementById('commsLog');
-  const fileListEl = document.getElementById('fileList');
-
-  function updateMissionDisplays() {
-    const name = currentMission ? currentMission.name : 'None';
-    currentMissionNameEls.forEach(el => el.textContent = name);
-  }
-
-  // Render mission list with View and Delete buttons
-  function refreshMissionList() {
-    missionListEl.innerHTML = '';
-
-    if (missions.length === 0) {
-      missionListEl.textContent = 'No missions yet.';
-      return;
-    }
-
-    missions.forEach((m, i) => {
-      const row = document.createElement('div');
-
-      const nameDiv = document.createElement('div');
-      nameDiv.textContent = m.name;
-
-      const viewBtn = document.createElement('button');
-      viewBtn.textContent = 'View';
-      viewBtn.classList.add('view');
-      viewBtn.onclick = () => {
-        currentMission = m;
-        updateMissionDisplays();
-        renderChat();
-        renderComms();
-        renderFiles();
-      };
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = 'Delete';
-      deleteBtn.classList.add('delete');
-      deleteBtn.onclick = () => {
-        if (confirm(`Are you sure you want to delete mission "${m.name}"?`)) {
-          deleteMissionFromFirebase(m);
+        if (!match) {
+          alert("Aircraft not found.");
+          return;
         }
-      };
 
-      row.appendChild(nameDiv);
-      row.appendChild(viewBtn);
-      row.appendChild(deleteBtn);
+        const lat = match[6];
+        const lon = match[5];
 
-      missionListEl.appendChild(row);
-    });
-  }
+        if (lat && lon) {
+          map.setView([lat, lon], 7);
+          L.marker([lat, lon]).addTo(map)
+            .bindPopup(`Tail: ${match[1]}<br>Lat: ${lat}<br>Lon: ${lon}`).openPopup();
+        } else {
+          alert("Aircraft location not available.");
+        }
 
-  // Function to delete mission from Firebase
-  function deleteMissionFromFirebase(mission) {
-    // Find the Firebase key of the mission by matching name
-    database.ref('missions').orderByChild('name').equalTo(mission.name).once('value', snapshot => {
-      snapshot.forEach(childSnapshot => {
-        childSnapshot.ref.remove()
-          .then(() => {
-            // Remove from local array
-            missions = missions.filter(m => m.name !== mission.name);
-            // Reset currentMission if deleted mission was selected
-            if (currentMission && currentMission.name === mission.name) {
-              currentMission = null;
-              updateMissionDisplays();
-              renderChat();
-              renderComms();
-              renderFiles();
-            }
-            refreshMissionList();
-          })
-          .catch(err => alert("Failed to delete mission: " + err.message));
-      });
-    });
-  }
-
-  // Render chat messages
-  function renderChat() {
-    if (!currentMission) {
-      chatMessagesEl.textContent = 'Select a mission';
-      return;
-    }
-    chatMessagesEl.innerHTML = '';
-    currentMission.chat.forEach(msg => {
-      const div = document.createElement('div');
-      div.textContent = msg;
-      chatMessagesEl.appendChild(div);
-    });
-  }
-
-  // Render comms logs
-  function renderComms() {
-    if (!currentMission) {
-      commsLogEl.textContent = 'Select a mission';
-      return;
-    }
-    commsLogEl.innerHTML = '';
-    currentMission.comms.forEach(log => {
-      const div = document.createElement('div');
-      div.textContent = log;
-      commsLogEl.appendChild(div);
-    });
-  }
-
-  // Render file list
-  function renderFiles() {
-    if (!currentMission) {
-      fileListEl.innerHTML = '<li>Select a mission</li>';
-      return;
-    }
-    fileListEl.innerHTML = '';
-    currentMission.files.forEach(f => {
-      const li = document.createElement('li');
-      li.textContent = f.name;
-      fileListEl.appendChild(li);
-    });
-  }
-
-  // Add new mission locally AND save to Firebase
-  document.getElementById('createMissionBtn').onclick = () => {
-    const input = document.getElementById('newMissionName');
-    const name = input.value.trim();
-    if (!name) {
-      alert('Please enter a mission name');
-      return;
-    }
-    // Prepare new mission object
-    const newMission = { name, chat: [], comms: [], files: [] };
-
-    // Push to Firebase
-    const newMissionRef = database.ref('missions').push();
-    newMissionRef.set(newMission)
-      .then(() => {
-        input.value = '';
-        loadMissionsFromFirebase(); // Reload missions from Firebase to update UI
-      })
-      .catch(err => alert("Error saving mission: " + err.message));
-  };
-
-  // Send chat message (locally and save to Firebase)
-  document.getElementById('sendChatBtn').onclick = () => {
-    const input = document.getElementById('chatInput');
-    const msg = input.value.trim();
-    if (!msg || !currentMission) return alert('Select a mission first');
-    currentMission.chat.push(msg);
-
-    // Update Firebase
-    updateMissionInFirebase(currentMission);
-    input.value = '';
-    renderChat();
-  };
-
-  // Log comms (locally and save to Firebase)
-  document.getElementById('logCommsBtn').onclick = () => {
-    const input = document.getElementById('commsInput');
-    const log = input.value.trim();
-    if (!log || !currentMission) return alert('Select a mission first');
-    currentMission.comms.push(log);
-
-    // Update Firebase
-    updateMissionInFirebase(currentMission);
-    input.value = '';
-    renderComms();
-  };
-
-  // Upload file (just store name locally and in Firebase)
-  document.getElementById('uploadFileBtn').onclick = () => {
-    const fileInput = document.getElementById('fileUpload');
-    if (!fileInput.files.length || !currentMission) return alert('Select a mission first');
-    currentMission.files.push({ name: fileInput.files[0].name });
-
-    updateMissionInFirebase(currentMission);
-    fileInput.value = '';
-    renderFiles();
-  };
-
-  // Helper: Update a mission in Firebase by matching name (inefficient for demo)
-  function updateMissionInFirebase(mission) {
-    // Find mission by name in Firebase and update it
-    database.ref('missions').orderByChild('name').equalTo(mission.name).once('value', snapshot => {
-      const updates = {};
-      snapshot.forEach(childSnapshot => {
-        updates[childSnapshot.key] = mission;
-      });
-      if (Object.keys(updates).length > 0) {
-        database.ref('missions').update(updates)
-          .catch(err => console.error("Failed to update mission:", err));
+      } catch (err) {
+        console.error(err);
+        alert("Error fetching aircraft data.");
       }
-    });
-  }
-
-  // Load all missions from Firebase and update local list + UI
-  function loadMissionsFromFirebase() {
-    database.ref('missions').once('value')
-      .then(snapshot => {
-        const data = snapshot.val();
-        missions = [];
-        if (data) {
-          // Convert object to array of missions
-          for (const key in data) {
-            if (Object.hasOwnProperty.call(data, key)) {
-              missions.push(data[key]);
-            }
-          }
-        }
-        currentMission = null;
-        updateMissionDisplays();
-        refreshMissionList();
-      })
-      .catch(err => {
-        console.error("Error loading missions:", err);
-        alert("Error loading missions: " + err.message);
-      });
-  }
-</script>
-
+    }
+  </script>
 </body>
 </html>
