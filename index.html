@@ -2,96 +2,172 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Live Aircraft Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mission Management with Aircraft Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 0;
+    body { font-family: Arial, sans-serif; margin: 1rem; background: #f5f5f5; }
+    section { margin-bottom: 2rem; }
+    h2 { border-bottom: 1px solid #ccc; }
+    input, button, textarea {
+      margin-top: 0.5rem;
+      display: block;
+      padding: 0.5rem;
+      font-size: 1rem;
     }
-
-    #map {
-      height: 90vh;
-      width: 100%;
-      margin-top: 10px;
+    #chatMessages, #commsLog, #fileList {
+      border: 1px solid #ccc;
+      height: 150px;
+      overflow-y: auto;
+      padding: 0.5rem;
     }
-
-    input, button {
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 16px;
+    #loginSection, #createAccountSection {
+      max-width: 400px;
+      margin: 2rem auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
+    #createAccountSection { display: none; }
+    #missionList div {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      gap: 0.5rem;
+    }
+    #missionList div > div:first-child {
+      flex: 1;
+    }
+    #missionList button.delete {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      border-radius: 4px;
+    }
+    #missionList button.view {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      border-radius: 4px;
+    }
+    #aircraftTracking { height: 500px; margin-top: 2rem; }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
-  <h1>Live Aircraft Tracker</h1>
-  <input type="text" id="tailInput" placeholder="Enter Tail Number (e.g., N12345)" />
-  <button onclick="startTracking()">Start Tracking</button>
-  <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([39.5, -98.35], 4); // USA center
-    let aircraftMarker = null;
-    let trackingTail = null;
-    let updateInterval = null;
+<!-- LOGIN SECTION -->
+<div id="loginSection">
+  <h2>Mission Access</h2>
+  <input type="text" id="usernameInput" placeholder="Username" autocomplete="username" />
+  <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password" />
+  <button id="loginBtn">Login</button>
+  <button id="createAccountBtn">Create Account</button>
+  <p id="loginError" style="color:red;"></p>
+</div>
 
-    // Use your uploaded custom icon
-    const planeIcon = L.icon({
-      iconUrl: 'plane-icon.png', // ✅ Your uploaded image file
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
-      popupAnchor: [0, -20]
-    });
+<!-- CREATE ACCOUNT SECTION -->
+<div id="createAccountSection">
+  <h2>Request an Account</h2>
+  <p>Email Kendrick: <a href="mailto:Kendrick.Uhles@cawgcap.org?cc=Laramie.Uhles@cawgcap.org&subject=Mission%20System%20Account%20Request">Kendrick.Uhles@cawgcap.org</a></p>
+  <button id="backToLoginBtn">&larr; Back to Login</button>
+</div>
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: 'Map data © OpenStreetMap contributors'
-    }).addTo(map);
+<!-- MAIN APP SECTION -->
+<div id="mainApp" style="display:none;">
+  <h1>Mission Management</h1>
+  <section id="missions">
+    <h2>Missions</h2>
+    <div id="missionList"></div>
+    <input type="text" id="newMissionName" placeholder="New mission name" />
+    <button id="createMissionBtn">Create Mission</button>
+  </section>
 
-    async function updateAircraftPosition() {
-      try {
-        const res = await fetch('https://opensky-network.org/api/states/all');
-        const data = await res.json();
+  <section id="chat">
+    <h2>Chat</h2>
+    <p>Mission: <span id="currentMissionName">None</span></p>
+    <div id="chatMessages"></div>
+    <input type="text" id="chatInput" placeholder="Type a message" />
+    <button id="sendChatBtn">Send</button>
+  </section>
 
+  <section id="comms">
+    <h2>Comms Log</h2>
+    <p>Mission: <span id="currentMissionName2">None</span></p>
+    <div id="commsLog"></div>
+    <input type="text" id="commsInput" placeholder="Log entry" />
+    <button id="logCommsBtn">Log</button>
+  </section>
+
+  <section id="files">
+    <h2>Files</h2>
+    <p>Mission: <span id="currentMissionName3">None</span></p>
+    <input type="file" id="fileUpload" />
+    <button id="uploadFileBtn">Upload</button>
+    <ul id="fileList"></ul>
+  </section>
+
+  <section id="aircraft">
+    <h2>Track an Aircraft</h2>
+    <input type="text" id="tailInput" placeholder="Enter Tail Number (e.g., N12345)" />
+    <button onclick="trackAircraft()">Track</button>
+    <div id="aircraftTracking"></div>
+  </section>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+    authDomain: "mission-9dd26.firebaseapp.com",
+    databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+    projectId: "mission-9dd26",
+    storageBucket: "mission-9dd26.appspot.com",
+    messagingSenderId: "1080303837931",
+    appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+    measurementId: "G-NWFV3RFGKV"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  // Map setup
+  let map = L.map('aircraftTracking').setView([39.5, -98.35], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data © OpenStreetMap contributors'
+  }).addTo(map);
+  let aircraftMarker = null;
+
+  function trackAircraft() {
+    const tail = document.getElementById("tailInput").value.toUpperCase();
+    if (!tail) return alert("Please enter a tail number.");
+    fetch('https://opensky-network.org/api/states/all')
+      .then(res => res.json())
+      .then(data => {
         const match = data.states.find(state =>
-          state[1] && state[1].trim().toUpperCase().includes(trackingTail)
+          state[1] && state[1].trim().toUpperCase().includes(tail)
         );
-
-        if (!match) {
-          console.log("Aircraft not found or not in flight.");
-          return;
-        }
-
+        if (!match) return alert("Aircraft not found.");
         const lat = match[6];
         const lon = match[5];
-
         if (lat && lon) {
-          if (aircraftMarker) {
-            aircraftMarker.setLatLng([lat, lon]);
-          } else {
-            aircraftMarker = L.marker([lat, lon], { icon: planeIcon }).addTo(map)
-              .bindPopup(`Tail: ${match[1]}<br>Lat: ${lat}<br>Lon: ${lon}`).openPopup();
-          }
+          if (aircraftMarker) aircraftMarker.setLatLng([lat, lon]);
+          else aircraftMarker = L.marker([lat, lon]).addTo(map);
           map.setView([lat, lon], 7);
-        }
-      } catch (err) {
-        console.error("Error updating aircraft position:", err);
-      }
-    }
-
-    function startTracking() {
-      const input = document.getElementById("tailInput").value.toUpperCase().trim();
-      if (!input) return alert("Please enter a tail number.");
-      trackingTail = input;
-
-      if (updateInterval) clearInterval(updateInterval);
-      aircraftMarker = null;
-      updateAircraftPosition(); // First position
-      updateInterval = setInterval(updateAircraftPosition, 15000); // Update every 15 seconds
-    }
-  </script>
+        } else alert("Location unavailable.");
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Error fetching aircraft data.");
+      });
+  }
+</script>
 </body>
 </html>
