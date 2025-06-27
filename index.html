@@ -85,57 +85,274 @@
       width: 300px;
       z-index: 1000;
     }
+    #statusBar {
+      font-size: 0.9rem;
+      margin-bottom: 5px;
+    }
   </style>
 </head>
 <body>
-  <!-- Content omitted for brevity -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <div id="adminLogin" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999">
+    <img src="Logo" alt="Logo" style="width:300px;margin-bottom:1rem" />
+    <h2>Login</h2>
+    <input id="loginUsername" placeholder="Username" />
+    <input type="password" id="loginPassword" placeholder="Password" />
+    <button onclick="loginUser()">Login</button>
+    <p id="loginError" style="color:red"></p>
+    <p style="margin-top:10px;">
+      <a href="https://forms.office.com/r/gDySnXnE7X" target="_blank" style="color:#3a8eed; text-decoration: underline;">
+        Sign up or Reset password
+      </a>
+    </p>
+  </div>
+
+  <div class="grid" id="mainApp" style="display:none">
+    <div class="panel">
+      <h2>Incident Command</h2>
+      <div id="chatMessages"></div>
+      <input type="text" id="chatInput" placeholder="Message #operations" />
+      <button onclick="sendChat()">Send</button>
+    </div>
+
+    <div class="panel">
+      <h2>Unit Tracking</h2>
+      <div id="statusBar">Loading CAP aircraft...</div>
+      <div id="map"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Comms Log</h2>
+      <div id="commsLog"></div>
+      <input type="text" id="commsInput" placeholder="Log entry" />
+      <button onclick="logComms()">Log</button>
+    </div>
+
+    <div class="panel">
+      <h2>File Sharing</h2>
+      <input type="file" id="fileUpload" />
+      <button onclick="uploadFile()">Upload</button>
+      <ul id="fileList"></ul>
+    </div>
+  </div>
+
+  <button id="profileBtn" onclick="toggleProfileSearch()">Search Profiles</button>
+  <div id="profileSearch">
+    <input type="text" id="searchBox" placeholder="Search by name..." oninput="searchProfile()" />
+    <div id="profileResult" style="margin-top:10px"></div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <script>
-    // your existing Firebase init, chat, comms, file logic remains unchanged
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-    let map = L.map('map').setView([39.5, -98.35], 4);
+    const firebaseConfig = {
+      apiKey: "AIzaSyDRaTNFRTV0SLdUgfjVnO0CQT44yuElDh0",
+      authDomain: "test-data-base-6da39.firebaseapp.com",
+      projectId: "test-data-base-6da39",
+      storageBucket: "test-data-base-6da39.firebasestorage.app",
+      messagingSenderId: "342303847512",
+      appId: "1:342303847512:web:74688627a824be8130462d",
+      measurementId: "G-7XN8HCS0G1",
+      databaseURL: "https://test-data-base-6da39-default-rtdb.firebaseio.com"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const dbCAP = getDatabase(app);
+    const map = L.map('map').setView([37.5, -119], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    const trackedPlanes = {};
+    const statusBar = document.getElementById('statusBar');
+    const markers = {};
 
-    async function fetchTrackedAircraft() {
-      const snapshot = await db.ref('capAircraft').once('value');
-      const aircraft = snapshot.val();
-      if (!aircraft) return;
+    async function fetchCAPAircraftList() {
+      const snap = await get(ref(dbCAP, 'capAircraft'));
+      const data = snap.val();
+      if (!data) return [];
+      return Object.values(data).map(ac => ac.icao24.toLowerCase());
+    }
 
-      const icaoList = Object.values(aircraft).map(ac => ac.icao24).join(',');
-      const url = `https://opensky-network.org/api/states/all?icao24=${icaoList}`;
+    async function fetchLiveAircraft() {
+      const res = await fetch("https://opensky-network.org/api/states/all");
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.states || [];
+    }
 
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-        if (!data.states) return;
+    async function updateAircraftMarkers() {
+      const capIcaoList = await fetchCAPAircraftList();
+      const liveAircraft = await fetchLiveAircraft();
+      if (!liveAircraft) {
+        statusBar.textContent = "Error loading live aircraft.";
+        return;
+      }
 
-        for (const state of data.states) {
-          const icao = state[0];
-          const lat = state[6];
-          const lon = state[5];
-          const callsign = state[1]?.trim();
+      statusBar.textContent = `Tracking ${capIcaoList.length} CAP aircraft`;
+      const active = new Set();
 
-          if (!lat || !lon) continue;
+      liveAircraft.forEach(state => {
+        const icao = state[0].toLowerCase();
+        if (!capIcaoList.includes(icao)) return;
 
-          if (trackedPlanes[icao]) {
-            trackedPlanes[icao].setLatLng([lat, lon]);
-          } else {
-            trackedPlanes[icao] = L.marker([lat, lon]).addTo(map)
-              .bindPopup(`Callsign: ${callsign || 'Unknown'}<br>ICAO24: ${icao}`);
-          }
+        const callsign = state[1]?.trim() || 'N/A';
+        const lat = state[6];
+        const lng = state[5];
+        const alt = state[7];
+        const speed = state[9];
+
+        if (lat === null || lng === null) return;
+        active.add(icao);
+
+        if (!markers[icao]) {
+          markers[icao] = L.marker([lat, lng]).addTo(map).bindPopup('Loading...');
+        } else {
+          markers[icao].setLatLng([lat, lng]);
         }
-      } catch (e) {
-        console.error("Failed to fetch aircraft:", e);
+
+        markers[icao].setPopupContent(`
+          <b>Callsign:</b> ${callsign}<br>
+          <b>ICAO24:</b> ${icao}<br>
+          <b>Alt:</b> ${alt?.toFixed(0) || 'N/A'} ft<br>
+          <b>Speed:</b> ${speed?.toFixed(0) || 'N/A'} kt
+        `);
+      });
+
+      Object.keys(markers).forEach(icao => {
+        if (!active.has(icao)) {
+          map.removeLayer(markers[icao]);
+          delete markers[icao];
+        }
+      });
+    }
+
+    setInterval(updateAircraftMarkers, 15000);
+    updateAircraftMarkers();
+  </script>
+
+  <!-- Existing mission dashboard script -->
+  <script>
+    const firebaseConfig2 = {
+      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+      authDomain: "mission-9dd26.firebaseapp.com",
+      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+      projectId: "mission-9dd26",
+      storageBucket: "mission-9dd26.appspot.com",
+      messagingSenderId: "1080303837931",
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
+    };
+    firebase.initializeApp(firebaseConfig2);
+    const db = firebase.database();
+    const missionKey = 'demo-mission';
+
+    const chatMessagesEl = document.getElementById('chatMessages');
+    const commsLogEl = document.getElementById('commsLog');
+    const fileListEl = document.getElementById('fileList');
+
+    let currentUser = null;
+    const users = {
+      "Kendrick Uhles": "Ku2023!@",
+      "Laramie Uhles": "Missions2025",
+      "Ryan Uhles": "IC2025!"
+    };
+
+    function loginUser() {
+      const user = document.getElementById("loginUsername").value.trim();
+      const pass = document.getElementById("loginPassword").value.trim();
+      if (users[user] && users[user] === pass) {
+        currentUser = user;
+        document.getElementById("adminLogin").style.display = "none";
+        document.getElementById("mainApp").style.display = "grid";
+      } else {
+        document.getElementById("loginError").textContent = "Invalid login.";
       }
     }
 
-    setInterval(fetchTrackedAircraft, 10000);
+    function getTimeStamp() {
+      const now = new Date();
+      return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg || !currentUser) return;
+      db.ref(`missions/${missionKey}/chat`).push({ text: msg, time: getTimeStamp(), user: currentUser });
+      input.value = '';
+    }
+
+    function logComms() {
+      const input = document.getElementById('commsInput');
+      const entry = input.value.trim();
+      if (!entry) return;
+      db.ref(`missions/${missionKey}/comms`).push({ text: entry, time: getTimeStamp() });
+      input.value = '';
+    }
+
+    function uploadFile() {
+      const input = document.getElementById('fileUpload');
+      if (!input.files.length) return;
+      const file = input.files[0];
+      db.ref(`missions/${missionKey}/files`).push({ name: file.name });
+      input.value = '';
+    }
+
+    db.ref(`missions/${missionKey}/chat`).on('value', snap => {
+      const data = snap.val();
+      chatMessagesEl.innerHTML = '';
+      if (data) Object.values(data).forEach(msg => {
+        const div = document.createElement('div');
+        div.textContent = `[${msg.time || '??'}] ${msg.user || 'Unknown'}: ${msg.text || msg}`;
+        chatMessagesEl.appendChild(div);
+      });
+    });
+
+    db.ref(`missions/${missionKey}/comms`).on('value', snap => {
+      const data = snap.val();
+      commsLogEl.innerHTML = '';
+      if (data) Object.values(data).forEach(entry => {
+        const div = document.createElement('div');
+        div.textContent = `${entry.time || '??'} - ${entry.text || entry}`;
+        commsLogEl.appendChild(div);
+      });
+    });
+
+    db.ref(`missions/${missionKey}/files`).on('value', snap => {
+      const data = snap.val();
+      fileListEl.innerHTML = '';
+      if (data) Object.values(data).forEach(file => {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        fileListEl.appendChild(li);
+      });
+    });
+
+    function toggleProfileSearch() {
+      const box = document.getElementById("profileSearch");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    }
+
+    function searchProfile() {
+      const name = document.getElementById("searchBox").value.trim();
+      const resultBox = document.getElementById("profileResult");
+      if (!name) {
+        resultBox.innerHTML = "";
+        return;
+      }
+      db.ref(`profiles/${name}`).once('value', snap => {
+        const data = snap.val();
+        if (data) {
+          resultBox.innerHTML = `<strong>${name}</strong><br><ul>` +
+            data.qualifications.map(q => `<li>${q}</li>`).join('') + '</ul>';
+        } else {
+          resultBox.innerHTML = 'Profile not found.';
+        }
+      });
+    }
   </script>
 </body>
 </html>
