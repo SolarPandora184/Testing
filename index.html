@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mission Management</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
   <style>
     :root {
       --bg: #12161d;
@@ -15,9 +16,7 @@
       --highlight: #3a8eed;
     }
     * { box-sizing: border-box; }
-    html, body {
-      height: 100%;
-    }
+    html, body { height: 100%; }
     body {
       margin: 0;
       font-family: sans-serif;
@@ -86,10 +85,9 @@
       cursor: pointer;
       z-index: 1000;
     }
-    #logoutBtn {
+    #logoutBtn, #voiceBtn {
       position: fixed;
       top: 15px;
-      right: 15px;
       background: red;
       color: white;
       border: none;
@@ -97,6 +95,13 @@
       border-radius: 5px;
       cursor: pointer;
       z-index: 1000;
+    }
+    #logoutBtn {
+      right: 15px;
+    }
+    #voiceBtn {
+      right: 115px;
+      background: green;
     }
     #profileSearch {
       display: none;
@@ -112,6 +117,19 @@
     #statusBar {
       font-size: 0.9rem;
       margin-bottom: 5px;
+    }
+    #profileResult ul {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    #profileResult li {
+      background: var(--accent);
+      padding: 4px;
+      border-radius: 4px;
     }
   </style>
 </head>
@@ -161,6 +179,7 @@
 
   <button id="profileBtn" onclick="toggleProfileSearch()">Search Profiles</button>
   <button id="logoutBtn" onclick="logoutUser()" style="display:none">Logout</button>
+  <button id="voiceBtn" onclick="toggleVoiceChannel()" style="display:none">Join Voice</button>
   <div id="profileSearch">
     <input type="text" id="searchBox" placeholder="Search by name..." />
     <div id="profileResult" style="margin-top:10px"></div>
@@ -275,6 +294,7 @@
         document.getElementById("adminLogin").style.display = "none";
         document.getElementById("mainApp").style.display = "grid";
         document.getElementById("logoutBtn").style.display = "block";
+        document.getElementById("voiceBtn").style.display = "block";
         setTimeout(() => map.invalidateSize(), 300);
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
@@ -286,6 +306,8 @@
       document.getElementById("mainApp").style.display = "none";
       document.getElementById("adminLogin").style.display = "flex";
       document.getElementById("logoutBtn").style.display = "none";
+      document.getElementById("voiceBtn").style.display = "none";
+      leaveVoiceChannel();
     }
 
     function getTimeStamp() {
@@ -365,6 +387,91 @@
       db.ref(`profiles/${name}`).once('value', snap => {
         const data = snap.val();
         resultBox.innerHTML = data ? `<strong>${name}</strong><br><ul>${data.qualifications.map(q => `<li>${q}</li>`).join('')}</ul>` : 'Profile not found.';
+      });
+    }
+
+    // Voice Channel
+    let voiceStream = null;
+    let peers = {};
+    let voiceChannelActive = false;
+    const voiceRoom = "voiceRoom1";
+
+    async function toggleVoiceChannel() {
+      if (voiceChannelActive) {
+        leaveVoiceChannel();
+      } else {
+        joinVoiceChannel();
+      }
+    }
+
+    async function joinVoiceChannel() {
+      document.getElementById("voiceBtn").textContent = "Leave Voice";
+      voiceChannelActive = true;
+      voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      const myId = Date.now().toString();
+      const myRef = db.ref(`missions/${missionKey}/voice/${myId}`);
+      myRef.set(true);
+      myRef.onDisconnect().remove();
+
+      db.ref(`missions/${missionKey}/voice`).on("value", snap => {
+        const users = snap.val() || {};
+        Object.keys(users).forEach(id => {
+          if (id !== myId && !peers[id]) {
+            createVoicePeer(id, myId, myRef);
+          }
+        });
+      });
+    }
+
+    function leaveVoiceChannel() {
+      document.getElementById("voiceBtn").textContent = "Join Voice";
+      voiceChannelActive = false;
+      Object.values(peers).forEach(p => p.destroy());
+      peers = {};
+      voiceStream?.getTracks().forEach(t => t.stop());
+      db.ref(`missions/${missionKey}/voice`).off();
+      db.ref(`missions/${missionKey}/voice`).once("value", snap => {
+        const all = snap.val() || {};
+        for (const id in all) {
+          if (all[id] === true) db.ref(`missions/${missionKey}/voice/${id}`).remove();
+        }
+      });
+    }
+
+    function createVoicePeer(otherId, myId, myRef) {
+      const initiator = myId < otherId;
+      const peer = new SimplePeer({ initiator, trickle: false, stream: voiceStream });
+
+      peers[otherId] = peer;
+      const signalRef = db.ref(`missions/${missionKey}/signals/${myId}_${otherId}`);
+
+      peer.on('signal', data => {
+        signalRef.set(JSON.stringify(data));
+      });
+
+      db.ref(`missions/${missionKey}/signals/${otherId}_${myId}`).on('value', snap => {
+        if (snap.exists() && snap.val()) {
+          try {
+            const data = JSON.parse(snap.val());
+            peer.signal(data);
+          } catch (e) {
+            console.error('Invalid signal data', e);
+          }
+        }
+      });
+
+      peer.on('stream', stream => {
+        const audio = document.createElement('audio');
+        audio.srcObject = stream;
+        audio.autoplay = true;
+        audio.play();
+      });
+
+      peer.on('close', () => {
+        signalRef.remove();
+        db.ref(`missions/${missionKey}/signals/${otherId}_${myId}`).off();
+        delete peers[otherId];
       });
     }
 
