@@ -15,6 +15,9 @@
       --highlight: #3a8eed;
     }
     * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+    }
     body {
       margin: 0;
       font-family: sans-serif;
@@ -39,6 +42,7 @@
       flex-direction: column;
       overflow: hidden;
       height: 100%;
+      min-height: 0; /* Added for flexbox shrink */
     }
     .panel h2 {
       margin: 0 0 10px;
@@ -274,7 +278,7 @@
         currentUser = user;
         document.getElementById("adminLogin").style.display = "none";
         document.getElementById("mainApp").style.display = "grid";
-        setTimeout(() => map.invalidateSize(), 200); // fix Leaflet map sizing on show
+        setTimeout(() => map.invalidateSize(), 1000); // increased timeout
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
       }
@@ -361,6 +365,8 @@
         }
       });
     }
+
+    window.addEventListener('resize', () => map.invalidateSize());
   </script>
 </body>
 </html>
