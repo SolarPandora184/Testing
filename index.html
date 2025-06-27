@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mission Management</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
@@ -16,7 +16,13 @@
       --highlight: #3a8eed;
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; font-family: sans-serif; background: var(--bg); color: var(--text); }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -82,21 +88,20 @@
     #logoutBtn, #voiceBtn {
       position: fixed;
       top: 15px;
+      background: red;
+      color: white;
       border: none;
       padding: 10px 15px;
       border-radius: 5px;
       cursor: pointer;
       z-index: 1000;
-      color: white;
     }
     #logoutBtn {
       right: 15px;
-      background: red;
     }
     #voiceBtn {
       right: 115px;
       background: green;
-      display: none;
     }
     #profileSearch {
       display: none;
@@ -126,135 +131,9 @@
       padding: 4px;
       border-radius: 4px;
     }
-    /* Mission Selection styles */
-    #missionSelection {
-      padding: 20px;
-      color: var(--text);
-      display: none;
-      height: 100vh;
-      overflow-y: auto;
-    }
-    #missionList {
-      max-width: 600px;
-      margin: 0 auto;
-    }
-    .mission-item {
-      background: var(--panel);
-      padding: 12px 16px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      position: relative;
-      user-select: none;
-    }
-    .mission-item:hover, .mission-item:focus {
-      background: var(--highlight);
-      outline: none;
-    }
-    .mission-item button {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: #f44;
-      border: none;
-      color: white;
-      border-radius: 4px;
-      padding: 4px 8px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      user-select: none;
-    }
-    .mission-item button:hover {
-      background: #d22;
-    }
-    /* Add Mission Button */
-    #addMissionBtn {
-      position: fixed;
-      top: 15px;
-      left: 15px;
-      background: var(--highlight);
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 5px;
-      cursor: pointer;
-      z-index: 1002;
-      display: none;
-    }
-    /* Back to Missions Button */
-    #backToMissionsBtn {
-      position: fixed;
-      top: 15px;
-      left: 15px;
-      background: #555;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 5px;
-      cursor: pointer;
-      z-index: 1002;
-      display: none;
-    }
-    /* Add Mission Modal Popup */
-    #addMissionModal {
-      display: none;
-      position: fixed;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background: var(--panel);
-      padding: 20px;
-      border-radius: 10px;
-      z-index: 2000;
-      width: 320px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.7);
-    }
-    #addMissionModal h3 {
-      margin-top: 0;
-      margin-bottom: 15px;
-      font-weight: normal;
-    }
-    #addMissionModal label {
-      display: block;
-      margin-bottom: 10px;
-      font-size: 0.9rem;
-    }
-    #addMissionModal input[type="text"],
-    #addMissionModal input[type="date"] {
-      width: 100%;
-      padding: 6px 8px;
-      border-radius: 4px;
-      border: 1px solid #444;
-      background: #2a2f38;
-      color: white;
-      font-size: 1rem;
-    }
-    #addMissionModal button {
-      margin-top: 10px;
-      padding: 8px 14px;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    #saveMissionBtn {
-      background: var(--highlight);
-      color: white;
-    }
-    #cancelMissionBtn {
-      background: #555;
-      color: white;
-      margin-left: 10px;
-    }
-    #addMissionError {
-      color: #f66;
-      margin-top: 10px;
-      font-size: 0.9rem;
-      min-height: 1.2em;
-    }
   </style>
 </head>
 <body>
-  <!-- LOGIN SCREEN (UNCHANGED) -->
   <div id="adminLogin" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999">
     <img src="Logo" alt="Logo" style="width:300px;margin-bottom:1rem" />
     <h2>Login</h2>
@@ -269,43 +148,6 @@
     </p>
   </div>
 
-  <!-- MISSION SELECTION PAGE -->
-  <div id="missionSelection">
-    <h2>Select Mission</h2>
-    <div id="missionList">Loading missions...</div>
-  </div>
-
-  <!-- BACK TO MISSIONS BUTTON -->
-  <button id="backToMissionsBtn">Back to Missions</button>
-
-  <!-- ADD MISSION BUTTON -->
-  <button id="addMissionBtn">Add Mission</button>
-
-  <!-- ADD MISSION MODAL -->
-  <div id="addMissionModal">
-    <h3>Add New Mission</h3>
-    <label>
-      Mission Number<br />
-      <input type="text" id="newMissionNumber" />
-    </label>
-    <label>
-      Mission Name<br />
-      <input type="text" id="newMissionName" />
-    </label>
-    <label>
-      Start Date<br />
-      <input type="date" id="newMissionStart" />
-    </label>
-    <label>
-      End Date<br />
-      <input type="date" id="newMissionEnd" />
-    </label>
-    <button id="saveMissionBtn">Save</button>
-    <button id="cancelMissionBtn">Cancel</button>
-    <p id="addMissionError"></p>
-  </div>
-
-  <!-- MAIN DASHBOARD -->
   <div class="grid" id="mainApp" style="display:none">
     <div class="panel">
       <h2>Incident Command</h2>
@@ -335,16 +177,14 @@
     </div>
   </div>
 
-  <!-- PROFILE SEARCH & BUTTONS -->
   <button id="profileBtn" onclick="toggleProfileSearch()">Search Profiles</button>
   <button id="logoutBtn" onclick="logoutUser()" style="display:none">Logout</button>
-  <button id="voiceBtn" onclick="toggleVoiceChannel()">Join Voice</button>
+  <button id="voiceBtn" onclick="toggleVoiceChannel()" style="display:none">Join Voice</button>
   <div id="profileSearch">
     <input type="text" id="searchBox" placeholder="Search by name..." />
     <div id="profileResult" style="margin-top:10px"></div>
   </div>
 
-  <!-- SCRIPTS -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -360,223 +200,282 @@
       databaseURL: "https://test-data-base-6da39-default-rtdb.firebaseio.com"
     }, "capApp");
 
-    const db = firebase.database(capApp);
+    const dbCAP = capApp.database();
+    const db = firebase.initializeApp({
+      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+      authDomain: "mission-9dd26.firebaseapp.com",
+      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+      projectId: "mission-9dd26",
+      storageBucket: "mission-9dd26.appspot.com",
+      messagingSenderId: "1080303837931",
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
+    }, "missionApp").database();
 
-    // LOGIN (unchanged)
-    const adminLogin = document.getElementById("adminLogin");
-    const loginUsername = document.getElementById("loginUsername");
-    const loginPassword = document.getElementById("loginPassword");
-    const loginError = document.getElementById("loginError");
+    const missionKey = 'demo-mission';
+    const map = L.map('map').setView([37.5, -119], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-    let loggedIn = false;
-    function loginUser() {
-      const user = loginUsername.value.trim();
-      const pass = loginPassword.value;
-      if (user === "admin" && pass === "yourPassword") { // Replace with your password check
-        loggedIn = true;
-        adminLogin.style.display = "none";
-        showMissionSelection();
-        logoutBtn.style.display = "block";
-      } else {
-        loginError.textContent = "Invalid username or password.";
-      }
-    }
-    const logoutBtn = document.getElementById("logoutBtn");
-    logoutBtn.addEventListener('click', () => {
-      loggedIn = false;
-      adminLogin.style.display = "flex";
-      logoutBtn.style.display = "none";
-      mainApp.style.display = "none";
-      missionSelection.style.display = "none";
-      voiceBtn.style.display = "none";
-      addMissionBtn.style.display = "none";
-      backToMissionsBtn.style.display = "none";
-      cleanupListeners();
-    });
+    const statusBar = document.getElementById('statusBar');
+    const markers = {};
 
-    // DOM Elements
-    const mainApp = document.getElementById("mainApp");
-    const missionSelectionEl = document.getElementById("missionSelection");
-    const missionListEl = document.getElementById("missionList");
-    const addMissionBtn = document.getElementById("addMissionBtn");
-    const addMissionModal = document.getElementById("addMissionModal");
-    const saveMissionBtn = document.getElementById("saveMissionBtn");
-    const cancelMissionBtn = document.getElementById("cancelMissionBtn");
-    const addMissionError = document.getElementById("addMissionError");
-    const backToMissionsBtn = document.getElementById("backToMissionsBtn");
-    const voiceBtn = document.getElementById("voiceBtn");
-
-    let currentMissionKey = null;
-
-    // Map and aircraft variables (kept from your original)
-    let map, aircraftMarkers = {}, aircraftUpdateTimer;
-
-    // Show mission selection page
-    function showMissionSelection() {
-      currentMissionKey = null;
-      mainApp.style.display = "none";
-      missionSelectionEl.style.display = "block";
-      backToMissionsBtn.style.display = "none";
-
-      addMissionBtn.style.display = "block";
-      voiceBtn.style.display = "none";
-
-      cleanupListeners();
-      loadMissionList();
+    async function fetchCAPAircraftList() {
+      const snap = await dbCAP.ref('capAircraft').once('value');
+      const data = snap.val();
+      return data ? Object.values(data).map(ac => ac.icao24.toLowerCase()) : [];
     }
 
-    // Load missions from Firebase and show list
-    function loadMissionList() {
-      missionListEl.textContent = "Loading missions...";
-      db.ref('missions').once('value').then(snapshot => {
-        const missions = snapshot.val();
-        if (!missions) {
-          missionListEl.textContent = "No missions found.";
-          return;
+    async function fetchLiveAircraft() {
+      const res = await fetch("https://opensky-network.org/api/states/all");
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.states || [];
+    }
+
+    async function updateAircraftMarkers() {
+      const capIcaoList = await fetchCAPAircraftList();
+      const liveAircraft = await fetchLiveAircraft();
+      if (!liveAircraft) return statusBar.textContent = "Error loading live aircraft.";
+
+      statusBar.textContent = `Tracking ${capIcaoList.length} CAP aircraft`;
+      const active = new Set();
+
+      liveAircraft.forEach(state => {
+        const [icao, callsignRaw, , , , lng, lat, alt, , speed] = state;
+        const icaoLower = icao?.toLowerCase();
+        if (!capIcaoList.includes(icaoLower) || lat == null || lng == null) return;
+
+        active.add(icaoLower);
+        const callsign = callsignRaw?.trim() || 'N/A';
+
+        if (!markers[icaoLower]) {
+          markers[icaoLower] = L.marker([lat, lng]).addTo(map).bindPopup('Loading...');
+        } else {
+          markers[icaoLower].setLatLng([lat, lng]);
         }
-        missionListEl.innerHTML = "";
-        Object.entries(missions).forEach(([key, mission]) => {
-          const div = document.createElement("div");
-          div.className = "mission-item";
-          div.tabIndex = 0;
 
-          div.innerHTML = `
-            <strong>${mission.name || key}</strong><br/>
-            <small>${mission.description || ""}</small><br/>
-            <small>Mission #: ${mission.number || "N/A"} | Start: ${mission.startDate || "N/A"} | End: ${mission.endDate || "N/A"}</small>
-            <button>Remove</button>
-          `;
-
-          // Click mission div (except remove button) selects mission
-          div.addEventListener('click', e => {
-            if (e.target.tagName.toLowerCase() !== 'button') {
-              selectMission(key);
-            }
-          });
-          div.onkeypress = e => { if (e.key === "Enter") selectMission(key); };
-
-          // Remove button handler
-          const removeBtn = div.querySelector('button');
-          removeBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            if (confirm(`Are you sure you want to delete mission "${mission.name || key}"? This cannot be undone.`)) {
-              db.ref(`missions/${key}`).remove().then(() => {
-                loadMissionList();
-              }).catch(err => {
-                alert("Failed to delete mission.");
-                console.error(err);
-              });
-            }
-          });
-
-          missionListEl.appendChild(div);
-        });
-      }).catch(e => {
-        missionListEl.textContent = "Failed to load missions.";
-        console.error(e);
+        markers[icaoLower].setPopupContent(`
+          <b>Callsign:</b> ${callsign}<br>
+          <b>ICAO24:</b> ${icaoLower}<br>
+          <b>Alt:</b> ${alt?.toFixed(0) || 'N/A'} ft<br>
+          <b>Speed:</b> ${speed?.toFixed(0) || 'N/A'} kt
+        `);
       });
-    }
 
-    // Select a mission and show dashboard
-    function selectMission(key) {
-      currentMissionKey = key;
-      missionSelectionEl.style.display = "none";
-      mainApp.style.display = "grid";
-      backToMissionsBtn.style.display = "block";
-
-      addMissionBtn.style.display = "none";
-      voiceBtn.style.display = "block";
-
-      setupListeners(key);
-      setTimeout(() => map.invalidateSize(), 300);
-      startAircraftUpdates();
-    }
-
-    // Back to missions button
-    backToMissionsBtn.addEventListener('click', () => {
-      stopAircraftUpdates();
-      cleanupListeners();
-      showMissionSelection();
-    });
-
-    // Add Mission Button
-    addMissionBtn.addEventListener('click', () => {
-      addMissionError.textContent = "";
-      document.getElementById('newMissionNumber').value = "";
-      document.getElementById('newMissionName').value = "";
-      document.getElementById('newMissionStart').value = "";
-      document.getElementById('newMissionEnd').value = "";
-      addMissionModal.style.display = "block";
-    });
-
-    // Cancel Add Mission Modal
-    cancelMissionBtn.addEventListener('click', () => {
-      addMissionModal.style.display = "none";
-    });
-
-    // Save Mission Modal
-    saveMissionBtn.addEventListener('click', () => {
-      const num = document.getElementById('newMissionNumber').value.trim();
-      const name = document.getElementById('newMissionName').value.trim();
-      const start = document.getElementById('newMissionStart').value;
-      const end = document.getElementById('newMissionEnd').value;
-
-      if (!num || !name || !start || !end) {
-        addMissionError.textContent = "All fields are required.";
-        return;
+      for (const icao in markers) {
+        if (!active.has(icao)) {
+          map.removeLayer(markers[icao]);
+          delete markers[icao];
+        }
       }
-      if (new Date(start) > new Date(end)) {
-        addMissionError.textContent = "Start date cannot be after end date.";
-        return;
-      }
-
-      const missionKey = num.replace(/\s+/g, '_').toLowerCase();
-
-      db.ref(`missions/${missionKey}`).set({
-        number: num,
-        name: name,
-        startDate: start,
-        endDate: end,
-        description: ""
-      }).then(() => {
-        addMissionModal.style.display = "none";
-        loadMissionList();
-      }).catch(err => {
-        addMissionError.textContent = "Error saving mission.";
-        console.error(err);
-      });
-    });
-
-    // Voice chat toggle (placeholder)
-    function toggleVoiceChannel() {
-      alert("Voice channel feature coming soon!");
     }
 
-    // Chat, comms, file upload, aircraft tracking, profile search, and other existing code goes here unchanged...
+    setInterval(updateAircraftMarkers, 15000);
+    updateAircraftMarkers();
 
-    // Minimal example placeholders to avoid JS errors (replace with your actual code)
-    function setupListeners(missionKey) { /* your existing code here */ }
-    function cleanupListeners() { /* your existing code here */ }
-    function startAircraftUpdates() { /* your existing code here */ }
-    function stopAircraftUpdates() { /* your existing code here */ }
-    function sendChat() { /* your existing code here */ }
-    function logComms() { /* your existing code here */ }
-    function uploadFile() { /* your existing code here */ }
-    function toggleProfileSearch() { 
-      const search = document.getElementById('profileSearch');
-      search.style.display = (search.style.display === 'block') ? 'none' : 'block';
-    }
+    const chatMessagesEl = document.getElementById('chatMessages');
+    const commsLogEl = document.getElementById('commsLog');
+    const fileListEl = document.getElementById('fileList');
 
-    // Initialize page: show login, everything else hidden
-    window.onload = () => {
-      adminLogin.style.display = "flex";
-      mainApp.style.display = "none";
-      missionSelectionEl.style.display = "none";
-      addMissionBtn.style.display = "none";
-      voiceBtn.style.display = "none";
-      backToMissionsBtn.style.display = "none";
-      logoutBtn.style.display = "none";
+    let currentUser = null;
+    const users = {
+      "Kendrick Uhles": "Ku2023!@",
+      "Laramie Uhles": "Missions2025",
+      "Ryan Uhles": "IC2025!"
     };
+
+    function loginUser() {
+      const user = document.getElementById("loginUsername").value.trim();
+      const pass = document.getElementById("loginPassword").value.trim();
+      if (users[user] && users[user] === pass) {
+        currentUser = user;
+        document.getElementById("adminLogin").style.display = "none";
+        document.getElementById("mainApp").style.display = "grid";
+        document.getElementById("logoutBtn").style.display = "block";
+        document.getElementById("voiceBtn").style.display = "block";
+        setTimeout(() => map.invalidateSize(), 300);
+      } else {
+        document.getElementById("loginError").textContent = "Invalid login.";
+      }
+    }
+
+    function logoutUser() {
+      currentUser = null;
+      document.getElementById("mainApp").style.display = "none";
+      document.getElementById("adminLogin").style.display = "flex";
+      document.getElementById("logoutBtn").style.display = "none";
+      document.getElementById("voiceBtn").style.display = "none";
+      leaveVoiceChannel();
+    }
+
+    function getTimeStamp() {
+      const now = new Date();
+      return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg || !currentUser) return;
+      db.ref(`missions/${missionKey}/chat`).push({ text: msg, time: getTimeStamp(), user: currentUser });
+      input.value = '';
+    }
+
+    function logComms() {
+      const input = document.getElementById('commsInput');
+      const entry = input.value.trim();
+      if (!entry) return;
+      db.ref(`missions/${missionKey}/comms`).push({ text: entry, time: getTimeStamp() });
+      input.value = '';
+    }
+
+    function uploadFile() {
+      const input = document.getElementById('fileUpload');
+      if (!input.files.length) return;
+      const file = input.files[0];
+      db.ref(`missions/${missionKey}/files`).push({ name: file.name });
+      input.value = '';
+    }
+
+    db.ref(`missions/${missionKey}/chat`).on('value', snap => {
+      const data = snap.val();
+      chatMessagesEl.innerHTML = '';
+      if (data) Object.values(data).forEach(msg => {
+        const div = document.createElement('div');
+        div.textContent = `[${msg.time || '??'}] ${msg.user || 'Unknown'}: ${msg.text || msg}`;
+        chatMessagesEl.appendChild(div);
+      });
+    });
+
+    db.ref(`missions/${missionKey}/comms`).on('value', snap => {
+      const data = snap.val();
+      commsLogEl.innerHTML = '';
+      if (data) Object.values(data).forEach(entry => {
+        const div = document.createElement('div');
+        div.textContent = `${entry.time || '??'} - ${entry.text || entry}`;
+        commsLogEl.appendChild(div);
+      });
+    });
+
+    db.ref(`missions/${missionKey}/files`).on('value', snap => {
+      const data = snap.val();
+      fileListEl.innerHTML = '';
+      if (data) Object.values(data).forEach(file => {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        fileListEl.appendChild(li);
+      });
+    });
+
+    let debounceTimeout;
+    document.getElementById("searchBox").addEventListener("input", function () {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(searchProfile, 300);
+    });
+
+    function toggleProfileSearch() {
+      const box = document.getElementById("profileSearch");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    }
+
+    function searchProfile() {
+      const name = document.getElementById("searchBox").value.trim();
+      const resultBox = document.getElementById("profileResult");
+      if (!name) return resultBox.innerHTML = "";
+      db.ref(`profiles/${name}`).once('value', snap => {
+        const data = snap.val();
+        resultBox.innerHTML = data ? `<strong>${name}</strong><br><ul>${data.qualifications.map(q => `<li>${q}</li>`).join('')}</ul>` : 'Profile not found.';
+      });
+    }
+
+    // Voice Channel
+    let voiceStream = null;
+    let peers = {};
+    let voiceChannelActive = false;
+    const voiceRoom = "voiceRoom1";
+
+    async function toggleVoiceChannel() {
+      if (voiceChannelActive) {
+        leaveVoiceChannel();
+      } else {
+        joinVoiceChannel();
+      }
+    }
+
+    async function joinVoiceChannel() {
+      document.getElementById("voiceBtn").textContent = "Leave Voice";
+      voiceChannelActive = true;
+      voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      const myId = Date.now().toString();
+      const myRef = db.ref(`missions/${missionKey}/voice/${myId}`);
+      myRef.set(true);
+      myRef.onDisconnect().remove();
+
+      db.ref(`missions/${missionKey}/voice`).on("value", snap => {
+        const users = snap.val() || {};
+        Object.keys(users).forEach(id => {
+          if (id !== myId && !peers[id]) {
+            createVoicePeer(id, myId, myRef);
+          }
+        });
+      });
+    }
+
+    function leaveVoiceChannel() {
+      document.getElementById("voiceBtn").textContent = "Join Voice";
+      voiceChannelActive = false;
+      Object.values(peers).forEach(p => p.destroy());
+      peers = {};
+      voiceStream?.getTracks().forEach(t => t.stop());
+      db.ref(`missions/${missionKey}/voice`).off();
+      db.ref(`missions/${missionKey}/voice`).once("value", snap => {
+        const all = snap.val() || {};
+        for (const id in all) {
+          if (all[id] === true) db.ref(`missions/${missionKey}/voice/${id}`).remove();
+        }
+      });
+    }
+
+    function createVoicePeer(otherId, myId, myRef) {
+      const initiator = myId < otherId;
+      const peer = new SimplePeer({ initiator, trickle: false, stream: voiceStream });
+
+      peers[otherId] = peer;
+      const signalRef = db.ref(`missions/${missionKey}/signals/${myId}_${otherId}`);
+
+      peer.on('signal', data => {
+        signalRef.set(JSON.stringify(data));
+      });
+
+      db.ref(`missions/${missionKey}/signals/${otherId}_${myId}`).on('value', snap => {
+        if (snap.exists() && snap.val()) {
+          try {
+            const data = JSON.parse(snap.val());
+            peer.signal(data);
+          } catch (e) {
+            console.error('Invalid signal data', e);
+          }
+        }
+      });
+
+      peer.on('stream', stream => {
+        const audio = document.createElement('audio');
+        audio.srcObject = stream;
+        audio.autoplay = true;
+        audio.play();
+      });
+
+      peer.on('close', () => {
+        signalRef.remove();
+        db.ref(`missions/${missionKey}/signals/${otherId}_${myId}`).off();
+        delete peers[otherId];
+      });
+    }
+
+    window.addEventListener('resize', () => map.invalidateSize());
   </script>
 </body>
 </html>
