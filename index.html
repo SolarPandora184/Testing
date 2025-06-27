@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mission Management</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
   <style>
     :root {
       --bg: #12161d;
@@ -16,7 +15,9 @@
       --highlight: #3a8eed;
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
+    html, body {
+      height: 100%;
+    }
     body {
       margin: 0;
       font-family: sans-serif;
@@ -41,7 +42,7 @@
       flex-direction: column;
       overflow: hidden;
       height: 100%;
-      min-height: 0;
+      min-height: 0; /* Added for flexbox shrink */
     }
     .panel h2 {
       margin: 0 0 10px;
@@ -85,24 +86,6 @@
       cursor: pointer;
       z-index: 1000;
     }
-    #logoutBtn, #voiceBtn {
-      position: fixed;
-      top: 15px;
-      background: red;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 5px;
-      cursor: pointer;
-      z-index: 1000;
-    }
-    #logoutBtn {
-      right: 15px;
-    }
-    #voiceBtn {
-      right: 115px;
-      background: green;
-    }
     #profileSearch {
       display: none;
       position: fixed;
@@ -117,19 +100,6 @@
     #statusBar {
       font-size: 0.9rem;
       margin-bottom: 5px;
-    }
-    #profileResult ul {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    #profileResult li {
-      background: var(--accent);
-      padding: 4px;
-      border-radius: 4px;
     }
   </style>
 </head>
@@ -178,41 +148,31 @@
   </div>
 
   <button id="profileBtn" onclick="toggleProfileSearch()">Search Profiles</button>
-  <button id="logoutBtn" onclick="logoutUser()" style="display:none">Logout</button>
-  <button id="voiceBtn" onclick="toggleVoiceChannel()" style="display:none">Join Voice</button>
   <div id="profileSearch">
-    <input type="text" id="searchBox" placeholder="Search by name..." />
+    <input type="text" id="searchBox" placeholder="Search by name..." oninput="searchProfile()" />
     <div id="profileResult" style="margin-top:10px"></div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const capApp = firebase.initializeApp({
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    const firebaseConfig = {
       apiKey: "AIzaSyDRaTNFRTV0SLdUgfjVnO0CQT44yuElDh0",
       authDomain: "test-data-base-6da39.firebaseapp.com",
       projectId: "test-data-base-6da39",
-      storageBucket: "test-data-base-6da39.appspot.com",
+      storageBucket: "test-data-base-6da39.firebasestorage.app",
       messagingSenderId: "342303847512",
       appId: "1:342303847512:web:74688627a824be8130462d",
       measurementId: "G-7XN8HCS0G1",
       databaseURL: "https://test-data-base-6da39-default-rtdb.firebaseio.com"
-    }, "capApp");
+    };
 
-    const dbCAP = capApp.database();
-    const db = firebase.initializeApp({
-      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
-      authDomain: "mission-9dd26.firebaseapp.com",
-      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
-      projectId: "mission-9dd26",
-      storageBucket: "mission-9dd26.appspot.com",
-      messagingSenderId: "1080303837931",
-      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
-      measurementId: "G-NWFV3RFGKV"
-    }, "missionApp").database();
-
-    const missionKey = 'demo-mission';
+    const app = initializeApp(firebaseConfig);
+    const dbCAP = getDatabase(app);
     const map = L.map('map').setView([37.5, -119], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
@@ -222,9 +182,10 @@
     const markers = {};
 
     async function fetchCAPAircraftList() {
-      const snap = await dbCAP.ref('capAircraft').once('value');
+      const snap = await get(ref(dbCAP, 'capAircraft'));
       const data = snap.val();
-      return data ? Object.values(data).map(ac => ac.icao24.toLowerCase()) : [];
+      if (!data) return [];
+      return Object.values(data).map(ac => ac.icao24.toLowerCase());
     }
 
     async function fetchLiveAircraft() {
@@ -237,43 +198,67 @@
     async function updateAircraftMarkers() {
       const capIcaoList = await fetchCAPAircraftList();
       const liveAircraft = await fetchLiveAircraft();
-      if (!liveAircraft) return statusBar.textContent = "Error loading live aircraft.";
+      if (!liveAircraft) {
+        statusBar.textContent = "Error loading live aircraft.";
+        return;
+      }
 
       statusBar.textContent = `Tracking ${capIcaoList.length} CAP aircraft`;
       const active = new Set();
 
       liveAircraft.forEach(state => {
-        const [icao, callsignRaw, , , , lng, lat, alt, , speed] = state;
-        const icaoLower = icao?.toLowerCase();
-        if (!capIcaoList.includes(icaoLower) || lat == null || lng == null) return;
+        const icao = state[0].toLowerCase();
+        if (!capIcaoList.includes(icao)) return;
 
-        active.add(icaoLower);
-        const callsign = callsignRaw?.trim() || 'N/A';
+        const callsign = state[1]?.trim() || 'N/A';
+        const lat = state[6];
+        const lng = state[5];
+        const alt = state[7];
+        const speed = state[9];
 
-        if (!markers[icaoLower]) {
-          markers[icaoLower] = L.marker([lat, lng]).addTo(map).bindPopup('Loading...');
+        if (lat === null || lng === null) return;
+        active.add(icao);
+
+        if (!markers[icao]) {
+          markers[icao] = L.marker([lat, lng]).addTo(map).bindPopup('Loading...');
         } else {
-          markers[icaoLower].setLatLng([lat, lng]);
+          markers[icao].setLatLng([lat, lng]);
         }
 
-        markers[icaoLower].setPopupContent(`
+        markers[icao].setPopupContent(`
           <b>Callsign:</b> ${callsign}<br>
-          <b>ICAO24:</b> ${icaoLower}<br>
+          <b>ICAO24:</b> ${icao}<br>
           <b>Alt:</b> ${alt?.toFixed(0) || 'N/A'} ft<br>
           <b>Speed:</b> ${speed?.toFixed(0) || 'N/A'} kt
         `);
       });
 
-      for (const icao in markers) {
+      Object.keys(markers).forEach(icao => {
         if (!active.has(icao)) {
           map.removeLayer(markers[icao]);
           delete markers[icao];
         }
-      }
+      });
     }
 
     setInterval(updateAircraftMarkers, 15000);
     updateAircraftMarkers();
+  </script>
+
+  <script>
+    const firebaseConfig2 = {
+      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+      authDomain: "mission-9dd26.firebaseapp.com",
+      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+      projectId: "mission-9dd26",
+      storageBucket: "mission-9dd26.appspot.com",
+      messagingSenderId: "1080303837931",
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
+    };
+    firebase.initializeApp(firebaseConfig2);
+    const db = firebase.database();
+    const missionKey = 'demo-mission';
 
     const chatMessagesEl = document.getElementById('chatMessages');
     const commsLogEl = document.getElementById('commsLog');
@@ -293,21 +278,10 @@
         currentUser = user;
         document.getElementById("adminLogin").style.display = "none";
         document.getElementById("mainApp").style.display = "grid";
-        document.getElementById("logoutBtn").style.display = "block";
-        document.getElementById("voiceBtn").style.display = "block";
-        setTimeout(() => map.invalidateSize(), 300);
+        setTimeout(() => map.invalidateSize(), 1000); // increased timeout
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
       }
-    }
-
-    function logoutUser() {
-      currentUser = null;
-      document.getElementById("mainApp").style.display = "none";
-      document.getElementById("adminLogin").style.display = "flex";
-      document.getElementById("logoutBtn").style.display = "none";
-      document.getElementById("voiceBtn").style.display = "none";
-      leaveVoiceChannel();
     }
 
     function getTimeStamp() {
@@ -369,12 +343,6 @@
       });
     });
 
-    let debounceTimeout;
-    document.getElementById("searchBox").addEventListener("input", function () {
-      clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(searchProfile, 300);
-    });
-
     function toggleProfileSearch() {
       const box = document.getElementById("profileSearch");
       box.style.display = box.style.display === "none" ? "block" : "none";
@@ -383,95 +351,18 @@
     function searchProfile() {
       const name = document.getElementById("searchBox").value.trim();
       const resultBox = document.getElementById("profileResult");
-      if (!name) return resultBox.innerHTML = "";
+      if (!name) {
+        resultBox.innerHTML = "";
+        return;
+      }
       db.ref(`profiles/${name}`).once('value', snap => {
         const data = snap.val();
-        resultBox.innerHTML = data ? `<strong>${name}</strong><br><ul>${data.qualifications.map(q => `<li>${q}</li>`).join('')}</ul>` : 'Profile not found.';
-      });
-    }
-
-    // Voice Channel
-    let voiceStream = null;
-    let peers = {};
-    let voiceChannelActive = false;
-    const voiceRoom = "voiceRoom1";
-
-    async function toggleVoiceChannel() {
-      if (voiceChannelActive) {
-        leaveVoiceChannel();
-      } else {
-        joinVoiceChannel();
-      }
-    }
-
-    async function joinVoiceChannel() {
-      document.getElementById("voiceBtn").textContent = "Leave Voice";
-      voiceChannelActive = true;
-      voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      const myId = Date.now().toString();
-      const myRef = db.ref(`missions/${missionKey}/voice/${myId}`);
-      myRef.set(true);
-      myRef.onDisconnect().remove();
-
-      db.ref(`missions/${missionKey}/voice`).on("value", snap => {
-        const users = snap.val() || {};
-        Object.keys(users).forEach(id => {
-          if (id !== myId && !peers[id]) {
-            createVoicePeer(id, myId, myRef);
-          }
-        });
-      });
-    }
-
-    function leaveVoiceChannel() {
-      document.getElementById("voiceBtn").textContent = "Join Voice";
-      voiceChannelActive = false;
-      Object.values(peers).forEach(p => p.destroy());
-      peers = {};
-      voiceStream?.getTracks().forEach(t => t.stop());
-      db.ref(`missions/${missionKey}/voice`).off();
-      db.ref(`missions/${missionKey}/voice`).once("value", snap => {
-        const all = snap.val() || {};
-        for (const id in all) {
-          if (all[id] === true) db.ref(`missions/${missionKey}/voice/${id}`).remove();
+        if (data) {
+          resultBox.innerHTML = `<strong>${name}</strong><br><ul>` +
+            data.qualifications.map(q => `<li>${q}</li>`).join('') + '</ul>';
+        } else {
+          resultBox.innerHTML = 'Profile not found.';
         }
-      });
-    }
-
-    function createVoicePeer(otherId, myId, myRef) {
-      const initiator = myId < otherId;
-      const peer = new SimplePeer({ initiator, trickle: false, stream: voiceStream });
-
-      peers[otherId] = peer;
-      const signalRef = db.ref(`missions/${missionKey}/signals/${myId}_${otherId}`);
-
-      peer.on('signal', data => {
-        signalRef.set(JSON.stringify(data));
-      });
-
-      db.ref(`missions/${missionKey}/signals/${otherId}_${myId}`).on('value', snap => {
-        if (snap.exists() && snap.val()) {
-          try {
-            const data = JSON.parse(snap.val());
-            peer.signal(data);
-          } catch (e) {
-            console.error('Invalid signal data', e);
-          }
-        }
-      });
-
-      peer.on('stream', stream => {
-        const audio = document.createElement('audio');
-        audio.srcObject = stream;
-        audio.autoplay = true;
-        audio.play();
-      });
-
-      peer.on('close', () => {
-        signalRef.remove();
-        db.ref(`missions/${missionKey}/signals/${otherId}_${myId}`).off();
-        delete peers[otherId];
       });
     }
 
