@@ -233,7 +233,6 @@
     updateAircraftMarkers();
   </script>
 
-  <!-- Existing mission dashboard script -->
   <script>
     const firebaseConfig2 = {
       apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
@@ -267,6 +266,7 @@
         currentUser = user;
         document.getElementById("adminLogin").style.display = "none";
         document.getElementById("mainApp").style.display = "grid";
+        setTimeout(() => map.invalidateSize(), 200); // ✅ minimal fix for map rendering
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
       }
