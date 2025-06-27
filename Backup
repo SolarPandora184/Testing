@@ -15,6 +15,9 @@
       --highlight: #3a8eed;
     }
     * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+    }
     body {
       margin: 0;
       font-family: sans-serif;
@@ -28,6 +31,8 @@
       height: 100vh;
       gap: 10px;
       padding: 10px;
+      align-items: stretch;
+      justify-items: stretch;
     }
     .panel {
       background: var(--panel);
@@ -36,6 +41,8 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      height: 100%;
+      min-height: 0;
     }
     .panel h2 {
       margin: 0 0 10px;
@@ -43,7 +50,12 @@
       border-bottom: 1px solid var(--accent);
       padding-bottom: 5px;
     }
-    #map { flex: 1; border-radius: 8px; }
+    #map {
+      flex-grow: 1;
+      width: 100%;
+      border-radius: 8px;
+      min-height: 0;
+    }
     #chatMessages, #commsLog, #fileList {
       flex: 1;
       overflow-y: auto;
@@ -67,6 +79,18 @@
       bottom: 15px;
       right: 15px;
       background: var(--highlight);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    #logoutBtn {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: red;
       color: white;
       border: none;
       padding: 10px 15px;
@@ -136,31 +160,40 @@
   </div>
 
   <button id="profileBtn" onclick="toggleProfileSearch()">Search Profiles</button>
+  <button id="logoutBtn" onclick="logoutUser()" style="display:none">Logout</button>
   <div id="profileSearch">
-    <input type="text" id="searchBox" placeholder="Search by name..." oninput="searchProfile()" />
+    <input type="text" id="searchBox" placeholder="Search by name..." />
     <div id="profileResult" style="margin-top:10px"></div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
-
-    const firebaseConfig = {
+  <script>
+    const capApp = firebase.initializeApp({
       apiKey: "AIzaSyDRaTNFRTV0SLdUgfjVnO0CQT44yuElDh0",
       authDomain: "test-data-base-6da39.firebaseapp.com",
       projectId: "test-data-base-6da39",
-      storageBucket: "test-data-base-6da39.firebasestorage.app",
+      storageBucket: "test-data-base-6da39.appspot.com",
       messagingSenderId: "342303847512",
       appId: "1:342303847512:web:74688627a824be8130462d",
       measurementId: "G-7XN8HCS0G1",
       databaseURL: "https://test-data-base-6da39-default-rtdb.firebaseio.com"
-    };
+    }, "capApp");
 
-    const app = initializeApp(firebaseConfig);
-    const dbCAP = getDatabase(app);
+    const dbCAP = capApp.database();
+    const db = firebase.initializeApp({
+      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
+      authDomain: "mission-9dd26.firebaseapp.com",
+      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
+      projectId: "mission-9dd26",
+      storageBucket: "mission-9dd26.appspot.com",
+      messagingSenderId: "1080303837931",
+      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
+      measurementId: "G-NWFV3RFGKV"
+    }, "missionApp").database();
+
+    const missionKey = 'demo-mission';
     const map = L.map('map').setView([37.5, -119], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
@@ -170,10 +203,9 @@
     const markers = {};
 
     async function fetchCAPAircraftList() {
-      const snap = await get(ref(dbCAP, 'capAircraft'));
+      const snap = await dbCAP.ref('capAircraft').once('value');
       const data = snap.val();
-      if (!data) return [];
-      return Object.values(data).map(ac => ac.icao24.toLowerCase());
+      return data ? Object.values(data).map(ac => ac.icao24.toLowerCase()) : [];
     }
 
     async function fetchLiveAircraft() {
@@ -186,68 +218,43 @@
     async function updateAircraftMarkers() {
       const capIcaoList = await fetchCAPAircraftList();
       const liveAircraft = await fetchLiveAircraft();
-      if (!liveAircraft) {
-        statusBar.textContent = "Error loading live aircraft.";
-        return;
-      }
+      if (!liveAircraft) return statusBar.textContent = "Error loading live aircraft.";
 
       statusBar.textContent = `Tracking ${capIcaoList.length} CAP aircraft`;
       const active = new Set();
 
       liveAircraft.forEach(state => {
-        const icao = state[0].toLowerCase();
-        if (!capIcaoList.includes(icao)) return;
+        const [icao, callsignRaw, , , , lng, lat, alt, , speed] = state;
+        const icaoLower = icao?.toLowerCase();
+        if (!capIcaoList.includes(icaoLower) || lat == null || lng == null) return;
 
-        const callsign = state[1]?.trim() || 'N/A';
-        const lat = state[6];
-        const lng = state[5];
-        const alt = state[7];
-        const speed = state[9];
+        active.add(icaoLower);
+        const callsign = callsignRaw?.trim() || 'N/A';
 
-        if (lat === null || lng === null) return;
-        active.add(icao);
-
-        if (!markers[icao]) {
-          markers[icao] = L.marker([lat, lng]).addTo(map).bindPopup('Loading...');
+        if (!markers[icaoLower]) {
+          markers[icaoLower] = L.marker([lat, lng]).addTo(map).bindPopup('Loading...');
         } else {
-          markers[icao].setLatLng([lat, lng]);
+          markers[icaoLower].setLatLng([lat, lng]);
         }
 
-        markers[icao].setPopupContent(`
+        markers[icaoLower].setPopupContent(`
           <b>Callsign:</b> ${callsign}<br>
-          <b>ICAO24:</b> ${icao}<br>
+          <b>ICAO24:</b> ${icaoLower}<br>
           <b>Alt:</b> ${alt?.toFixed(0) || 'N/A'} ft<br>
           <b>Speed:</b> ${speed?.toFixed(0) || 'N/A'} kt
         `);
       });
 
-      Object.keys(markers).forEach(icao => {
+      for (const icao in markers) {
         if (!active.has(icao)) {
           map.removeLayer(markers[icao]);
           delete markers[icao];
         }
-      });
+      }
     }
 
     setInterval(updateAircraftMarkers, 15000);
     updateAircraftMarkers();
-  </script>
-
-  <!-- Existing mission dashboard script -->
-  <script>
-    const firebaseConfig2 = {
-      apiKey: "AIzaSyAbkgmgqYqatkhmfDKnLHa4S52z9Jcz1lw",
-      authDomain: "mission-9dd26.firebaseapp.com",
-      databaseURL: "https://mission-9dd26-default-rtdb.firebaseio.com",
-      projectId: "mission-9dd26",
-      storageBucket: "mission-9dd26.appspot.com",
-      messagingSenderId: "1080303837931",
-      appId: "1:1080303837931:web:9b5ed2486bd6a2e70914ae",
-      measurementId: "G-NWFV3RFGKV"
-    };
-    firebase.initializeApp(firebaseConfig2);
-    const db = firebase.database();
-    const missionKey = 'demo-mission';
 
     const chatMessagesEl = document.getElementById('chatMessages');
     const commsLogEl = document.getElementById('commsLog');
@@ -267,9 +274,18 @@
         currentUser = user;
         document.getElementById("adminLogin").style.display = "none";
         document.getElementById("mainApp").style.display = "grid";
+        document.getElementById("logoutBtn").style.display = "block";
+        setTimeout(() => map.invalidateSize(), 300);
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
       }
+    }
+
+    function logoutUser() {
+      currentUser = null;
+      document.getElementById("mainApp").style.display = "none";
+      document.getElementById("adminLogin").style.display = "flex";
+      document.getElementById("logoutBtn").style.display = "none";
     }
 
     function getTimeStamp() {
@@ -331,6 +347,12 @@
       });
     });
 
+    let debounceTimeout;
+    document.getElementById("searchBox").addEventListener("input", function () {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(searchProfile, 300);
+    });
+
     function toggleProfileSearch() {
       const box = document.getElementById("profileSearch");
       box.style.display = box.style.display === "none" ? "block" : "none";
@@ -339,20 +361,14 @@
     function searchProfile() {
       const name = document.getElementById("searchBox").value.trim();
       const resultBox = document.getElementById("profileResult");
-      if (!name) {
-        resultBox.innerHTML = "";
-        return;
-      }
+      if (!name) return resultBox.innerHTML = "";
       db.ref(`profiles/${name}`).once('value', snap => {
         const data = snap.val();
-        if (data) {
-          resultBox.innerHTML = `<strong>${name}</strong><br><ul>` +
-            data.qualifications.map(q => `<li>${q}</li>`).join('') + '</ul>';
-        } else {
-          resultBox.innerHTML = 'Profile not found.';
-        }
+        resultBox.innerHTML = data ? `<strong>${name}</strong><br><ul>${data.qualifications.map(q => `<li>${q}</li>`).join('')}</ul>` : 'Profile not found.';
       });
     }
+
+    window.addEventListener('resize', () => map.invalidateSize());
   </script>
 </body>
 </html>
