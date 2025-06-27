@@ -28,6 +28,8 @@
       height: 100vh;
       gap: 10px;
       padding: 10px;
+      align-items: stretch;
+      justify-items: stretch;
     }
     .panel {
       background: var(--panel);
@@ -36,6 +38,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      height: 100%;
     }
     .panel h2 {
       margin: 0 0 10px;
@@ -43,7 +46,12 @@
       border-bottom: 1px solid var(--accent);
       padding-bottom: 5px;
     }
-    #map { flex: 1; border-radius: 8px; }
+    #map {
+      flex-grow: 1;
+      width: 100%;
+      border-radius: 8px;
+      min-height: 0;
+    }
     #chatMessages, #commsLog, #fileList {
       flex: 1;
       overflow-y: auto;
@@ -266,7 +274,7 @@
         currentUser = user;
         document.getElementById("adminLogin").style.display = "none";
         document.getElementById("mainApp").style.display = "grid";
-        setTimeout(() => map.invalidateSize(), 200); // ✅ minimal fix for map rendering
+        setTimeout(() => map.invalidateSize(), 200); // fix Leaflet map sizing on show
       } else {
         document.getElementById("loginError").textContent = "Invalid login.";
       }
