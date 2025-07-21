@@ -539,28 +539,6 @@
                 }
             },
 
-            async getAllItems() {
-                try {
-                    const itemsRef = ref(database, 'inventory');
-                    const snapshot = await get(itemsRef);
-                    
-                    if (snapshot.exists()) {
-                        const items = [];
-                        snapshot.forEach((childSnapshot) => {
-                            items.push({
-                                id: childSnapshot.key,
-                                ...childSnapshot.val()
-                            });
-                        });
-                        return items;
-                    }
-                    return [];
-                } catch (error) {
-                    console.error('Error getting items:', error);
-                    throw new Error('Failed to retrieve items: ' + error.message);
-                }
-            },
-
             onInventoryUpdate(callback) {
                 const itemsRef = ref(database, 'inventory');
                 return onValue(itemsRef, (snapshot) => {
@@ -702,12 +680,6 @@
                 }
                 
                 return errors;
-            },
-
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
             }
         };
 
@@ -726,8 +698,8 @@
             document.getElementById('cadetPage').classList.add('hidden');
             document.getElementById('navTitle').textContent = 'CAP Inventory - Admin Portal';
             document.getElementById('homeBtn').style.display = 'inline-block';
-            if (!window.adminPanel) {
-                initAdminPanel();
+            if (window.adminPanel) {
+                window.adminPanel.loadInventory();
             }
         };
 
@@ -737,8 +709,8 @@
             document.getElementById('cadetPage').classList.remove('hidden');
             document.getElementById('navTitle').textContent = 'CAP Inventory - Cadet Portal';
             document.getElementById('homeBtn').style.display = 'inline-block';
-            if (!window.cadetPortal) {
-                initCadetPortal();
+            if (window.cadetPortal) {
+                window.cadetPortal.loadAvailableItems();
             }
         };
 
@@ -757,11 +729,13 @@
             }
 
             setupEventListeners() {
+                // Add item form
                 document.getElementById('addItemForm').addEventListener('submit', (e) => {
                     e.preventDefault();
                     this.handleAddItem();
                 });
 
+                // Filter controls
                 document.getElementById('statusFilter').addEventListener('change', () => {
                     this.applyFilters();
                 });
@@ -770,6 +744,7 @@
                     this.applyFilters();
                 });
 
+                // Update status modal
                 document.getElementById('newStatus').addEventListener('change', (e) => {
                     const assigneeInfo = document.getElementById('assigneeInfo');
                     const assigneeCapIdInfo = document.getElementById('assigneeCapIdInfo');
@@ -781,4 +756,256 @@
                     } else {
                         assigneeInfo.style.display = 'none';
                         assigneeCapIdInfo.style.display = 'none';
-                        document.getElementById('assign
+                        document.getElementById('assigneeName').required = false;
+                        document.getElementById('assigneeCapId').required = false;
+                    }
+                });
+
+                document.getElementById('saveStatusBtn').addEventListener('click', () => {
+                    this.handleUpdateStatus();
+                });
+            }
+
+            async handleAddItem() {
+                try {
+                    const formData = {
+                        name: document.getElementById('itemName').value.trim(),
+                        type: document.getElementById('itemType').value,
+                        serialNumber: document.getElementById('serialNumber').value.trim(),
+                        status: document.getElementById('itemStatus').value
+                    };
+
+                    // Validate form data
+                    const errors = utils.validateItemData(formData);
+                    if (errors.length > 0
+                                                // Display error alerts
+                        utils.showAlert("alertContainer", errors.join("<br>"), "danger");
+                        return;
+                    }
+
+                    const result = await db.addItem(formData);
+                    if (result.success) {
+                        utils.showAlert("alertContainer", "Item added successfully!", "success");
+                        document.getElementById('addItemForm').reset();
+                        this.loadInventory();
+                    }
+                } catch (err) {
+                    utils.showAlert("alertContainer", err.message, "danger");
+                }
+            }
+
+            async handleUpdateStatus() {
+                try {
+                    const itemId = document.getElementById("updateItemId").value;
+                    const status = document.getElementById("newStatus").value;
+                    const assignedTo = status === "Assigned"
+                        ? {
+                              name: document.getElementById("assigneeName").value.trim(),
+                              capId: document.getElementById("assigneeCapId").value.trim()
+                          }
+                        : null;
+
+                    await db.updateItemStatus(itemId, status, assignedTo);
+                    utils.showAlert("alertContainer", "Item status updated!", "success");
+                    bootstrap.Modal.getInstance(document.getElementById("updateStatusModal")).hide();
+                    this.loadInventory();
+                } catch (err) {
+                    utils.showAlert("alertContainer", err.message, "danger");
+                }
+            }
+
+            applyFilters() {
+                const typeFilter = document.getElementById("typeFilter").value;
+                const statusFilter = document.getElementById("statusFilter").value;
+
+                this.filteredItems = this.items.filter((item) => {
+                    return (!typeFilter || item.type === typeFilter) &&
+                           (!statusFilter || item.status === statusFilter);
+                });
+
+                this.renderTable();
+            }
+
+            renderTable() {
+                const tableBody = document.getElementById("inventoryTableBody");
+                tableBody.innerHTML = "";
+
+                if (this.filteredItems.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">No items found.</td></tr>`;
+                    return;
+                }
+
+                for (const item of this.filteredItems) {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${item.name}</td>
+                        <td>${item.type}</td>
+                        <td>${item.serialNumber}</td>
+                        <td><span class="badge bg-${item.status === "In Inventory" ? "success" : "warning"}">${item.status}</span></td>
+                        <td>${item.assignedTo ?? "—"}</td>
+                        <td>${item.assignedCapId ?? "—"}</td>
+                        <td>${utils.formatDate(item.requestDate)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="adminPanel.showUpdateModal('${item.id}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                }
+            }
+
+            showUpdateModal(itemId) {
+                const item = this.items.find(i => i.id === itemId);
+                if (!item) return;
+
+                document.getElementById("updateItemId").value = item.id;
+                document.getElementById("newStatus").value = item.status;
+
+                const assigneeName = document.getElementById("assigneeName");
+                const assigneeCapId = document.getElementById("assigneeCapId");
+                const info = document.getElementById("assigneeInfo");
+                const capInfo = document.getElementById("assigneeCapIdInfo");
+
+                if (item.status === "Assigned") {
+                    info.style.display = "block";
+                    capInfo.style.display = "block";
+                    assigneeName.value = item.assignedTo || "";
+                    assigneeCapId.value = item.assignedCapId || "";
+                } else {
+                    info.style.display = "none";
+                    capInfo.style.display = "none";
+                    assigneeName.value = "";
+                    assigneeCapId.value = "";
+                }
+
+                new bootstrap.Modal(document.getElementById("updateStatusModal")).show();
+            }
+
+            loadInventory() {
+                db.onInventoryUpdate((items) => {
+                    this.items = items;
+                    this.filteredItems = [...items];
+                    this.renderTable();
+                });
+            }
+        }
+
+        // Cadet Portal Class
+        class CadetPortal {
+            constructor() {
+                this.items = [];
+                this.filteredItems = [];
+                this.setupListeners();
+            }
+
+            setupListeners() {
+                document.getElementById("searchInput").addEventListener("input", () => {
+                    this.applyFilters();
+                });
+
+                document.getElementById("typeFilterCadet").addEventListener("change", () => {
+                    this.applyFilters();
+                });
+
+                document.getElementById("submitRequestBtn").addEventListener("click", () => {
+                    this.handleRequest();
+                });
+            }
+
+            async handleRequest() {
+                const itemId = document.getElementById("requestItemId").value;
+                const name = document.getElementById("cadetName").value.trim();
+                const capId = document.getElementById("cadetCapId").value.trim();
+                const email = document.getElementById("cadetEmail").value.trim();
+                const reason = document.getElementById("requestReason").value.trim();
+
+                const requestData = { name, capId, email, reason };
+
+                const errors = utils.validateRequestData(requestData);
+                if (errors.length > 0) {
+                    utils.showAlert("alertContainer", errors.join("<br>"), "danger");
+                    return;
+                }
+
+                try {
+                    await db.submitRequest(itemId, requestData);
+                    bootstrap.Modal.getInstance(document.getElementById("requestModal")).hide();
+                    utils.showAlert("alertContainer", "Request submitted successfully!", "success");
+                    this.loadAvailableItems();
+                } catch (err) {
+                    utils.showAlert("alertContainer", err.message, "danger");
+                }
+            }
+
+            applyFilters() {
+                const search = document.getElementById("searchInput").value.toLowerCase();
+                const type = document.getElementById("typeFilterCadet").value;
+
+                this.filteredItems = this.items.filter((item) => {
+                    return item.status === "In Inventory" &&
+                        (!type || item.type === type) &&
+                        (!search || item.name.toLowerCase().includes(search));
+                });
+
+                this.renderItems();
+            }
+
+            renderItems() {
+                const container = document.getElementById("itemsContainer");
+                container.innerHTML = "";
+
+                if (this.filteredItems.length === 0) {
+                    container.innerHTML = `<div class="col-12 text-center text-muted">No items available.</div>`;
+                    return;
+                }
+
+                for (const item of this.filteredItems) {
+                    const card = document.createElement("div");
+                    card.className = "col-md-6 col-lg-4 mb-3";
+                    card.innerHTML = `
+                        <div class="card item-card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">${item.name}</h5>
+                                <p class="card-text">
+                                    <strong>Type:</strong> ${item.type}<br>
+                                    <strong>Serial:</strong> ${item.serialNumber}
+                                </p>
+                                <button class="btn btn-success w-100" onclick="cadetPortal.openRequestModal('${item.id}')">
+                                    <i class="fas fa-paper-plane me-2"></i>Request
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                }
+            }
+
+            openRequestModal(itemId) {
+                const item = this.items.find(i => i.id === itemId);
+                if (!item) return;
+
+                document.getElementById("selectedItemInfo").innerHTML = `
+                    <p><strong>Item:</strong> ${item.name}</p>
+                    <p><strong>Type:</strong> ${item.type}</p>
+                    <p><strong>Serial Number:</strong> ${item.serialNumber}</p>
+                `;
+                document.getElementById("requestItemId").value = item.id;
+                document.getElementById("requestForm").reset();
+                new bootstrap.Modal(document.getElementById("requestModal")).show();
+            }
+
+            loadAvailableItems() {
+                db.onInventoryUpdate((items) => {
+                    this.items = items;
+                    this.applyFilters();
+                });
+            }
+        }
+
+        // Initialize global instances
+        window.adminPanel = new AdminPanel();
+        window.cadetPortal = new CadetPortal();
+    </script>
+</body>
+</html>
